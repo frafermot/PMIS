@@ -1,26 +1,22 @@
-package com.example.program;
+package com.example.portfolio;
 
-import com.example.portfolio.Portfolio;
 import com.example.manager.Manager;
 
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "program")
-public class Program {
+@Table(name = "portfolio")
+public class Portfolio {
     
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE)
-    @Column(name = "program_id")
+    @Column(name = "portfolio_id")
     private Integer id;
 
-    @Column(name = "program_name", nullable = false)
+    @Column(name = "portfolio_name", nullable = false)
     private String name;
 
-    @Column(name = "program_portfolio", nullable = false)
-    private Portfolio portfolio;
-
-    @Column(name = "program_director", nullable = false)
+    @Column(name = "portfolio_director", nullable = false)
     private Manager director;
 
     public Integer getId() {
@@ -37,14 +33,6 @@ public class Program {
 
     public void setName(String name) {
         this.name = name;
-    }
-
-    public Portfolio getPortfolio() {
-        return portfolio;
-    }
-
-    public void setPortfolio(Portfolio portfolio) {
-        this.portfolio = portfolio;
     }
 
     public Manager getDirector() {
