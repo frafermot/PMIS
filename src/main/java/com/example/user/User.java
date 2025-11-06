@@ -1,20 +1,20 @@
-package com.example.manager;
+package com.example.user;
 
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "manager")
-public class Manager {
+@Table(name = "user")
+public class User {
     
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE)
-    @Column(name = "manager_id")
+    @Column(name = "user_id")
     private Integer id;
 
-    @Column(name = "manager_name", nullable = false)
+    @Column(name = "user_name", nullable = false)
     private String name;
 
-    @Column(name = "manager_uvus", unique = true, nullable = false)
+    @Column(name = "user_uvus", unique = true, nullable = false)
     private String uvus;
 
     public Integer getId() {
