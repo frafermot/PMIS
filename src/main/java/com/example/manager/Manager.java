@@ -1,6 +1,7 @@
 package com.example.manager;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.*;
 
 @Entity
 @Table(name = "manager")
@@ -8,13 +9,16 @@ public class Manager {
     
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE)
-    @Column(name = "manager_id")
+    @Column(name = "manager_id", nullable = false)
+    @NotNull
     private Integer id;
 
     @Column(name = "manager_name", nullable = false)
+    @NotBlank
     private String name;
 
     @Column(name = "manager_uvus", unique = true, nullable = false)
+    @NotBlank
     private String uvus;
 
     public Integer getId() {

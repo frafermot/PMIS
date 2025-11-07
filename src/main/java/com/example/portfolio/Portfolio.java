@@ -3,6 +3,7 @@ package com.example.portfolio;
 import com.example.manager.Manager;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.*;
 
 @Entity
 @Table(name = "portfolio")
@@ -10,13 +11,16 @@ public class Portfolio {
     
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE)
-    @Column(name = "portfolio_id")
+    @Column(name = "portfolio_id", nullable = false)
+    @NotNull
     private Integer id;
 
     @Column(name = "portfolio_name", nullable = false)
+    @NotBlank
     private String name;
 
     @Column(name = "portfolio_director", nullable = false)
+    @NotNull
     private Manager director;
 
     public Integer getId() {
