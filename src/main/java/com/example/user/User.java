@@ -1,5 +1,7 @@
 package com.example.user;
 
+import com.example.project.Project;
+
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 
@@ -20,6 +22,9 @@ public class User {
     @Column(name = "user_uvus", unique = true, nullable = false)
     @NotBlank
     private String uvus;
+
+    @Column(name = "user_project")
+    private Project project;
 
     public Integer getId() {
         return id;
@@ -43,5 +48,13 @@ public class User {
 
     public void setUvus(String uvus) {
         this.uvus = uvus;
+    }
+
+    public Project getProject() {
+        return project;
+    }
+
+    public void setProject(Project project) {
+        this.project = project;
     }
 }
