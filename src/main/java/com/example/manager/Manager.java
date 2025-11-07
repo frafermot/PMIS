@@ -21,6 +21,10 @@ public class Manager {
     @NotBlank
     private String uvus;
 
+    @Column(name = "manager_is_admin", nullable = false)
+    @NotNull
+    private Boolean isAdmin;
+
     public Integer getId() {
         return id;
     }
@@ -43,5 +47,13 @@ public class Manager {
 
     public void setUvus(String uvus) {
         this.uvus = uvus;
+    }
+
+    public Boolean getIsAdmin() {
+        return isAdmin;
+    }
+
+    public void setIsAdmin(Boolean isAdmin) {
+        this.isAdmin = isAdmin;
     }
 }
