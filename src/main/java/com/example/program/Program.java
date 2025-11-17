@@ -20,11 +20,13 @@ public class Program {
     @NotBlank
     private String name;
 
-    @Column(name = "program_portfolio", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "portfolio_id", nullable = false)
     @NotNull
     private Portfolio portfolio;
 
-    @Column(name = "program_director", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "director_id", nullable = false)
     @NotNull
     private Manager director;
 

@@ -19,7 +19,8 @@ public class Portfolio {
     @NotBlank
     private String name;
 
-    @Column(name = "portfolio_director", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "director_id", nullable = false)
     @NotNull
     private Manager director;
 
