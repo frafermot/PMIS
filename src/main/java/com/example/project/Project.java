@@ -5,6 +5,7 @@ import com.example.program.Program;
 import com.example.user.User;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.*;
 
 @Entity
 @Table(name = "project")
@@ -12,19 +13,27 @@ public class Project {
     
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE)
-    @Column(name = "project_id")
+    @Column(name = "project_id", nullable = false)
+    @NotNull
     private Integer id;
 
     @Column(name = "project_name", nullable = false)
+    @NotBlank
     private String name;
 
-    @Column(name = "project_director", unique = true, nullable = false)
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "director_id", nullable = false, unique = true)
+    @NotNull
     private User director;
 
-    @Column(name = "project_program", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "program_id", nullable = false)
+    @NotNull
     private Program program;
 
-    @Column(name = "project_sponsor", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "sponsor_id", nullable = false)
+    @NotNull
     private Manager sponsor;
 
     public Integer getId() {

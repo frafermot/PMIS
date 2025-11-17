@@ -4,6 +4,7 @@ import com.example.portfolio.Portfolio;
 import com.example.manager.Manager;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.*;
 
 @Entity
 @Table(name = "program")
@@ -11,16 +12,22 @@ public class Program {
     
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE)
-    @Column(name = "program_id")
+    @Column(name = "program_id", nullable = false)
+    @NotNull
     private Integer id;
 
     @Column(name = "program_name", nullable = false)
+    @NotBlank
     private String name;
 
-    @Column(name = "program_portfolio", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "portfolio_id", nullable = false)
+    @NotNull
     private Portfolio portfolio;
 
-    @Column(name = "program_director", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "director_id", nullable = false)
+    @NotNull
     private Manager director;
 
     public Integer getId() {

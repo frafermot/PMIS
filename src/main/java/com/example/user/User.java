@@ -1,21 +1,31 @@
 package com.example.user;
 
+import com.example.project.Project;
+
 import jakarta.persistence.*;
+import jakarta.validation.constraints.*;
 
 @Entity
-@Table(name = "user")
+@Table(name = "users")
 public class User {
     
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE)
-    @Column(name = "user_id")
+    @Column(name = "user_id", nullable = false)
+    @NotNull
     private Integer id;
 
     @Column(name = "user_name", nullable = false)
+    @NotBlank
     private String name;
 
     @Column(name = "user_uvus", unique = true, nullable = false)
+    @NotBlank
     private String uvus;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "project_id", nullable = false)
+    private Project project;
 
     public Integer getId() {
         return id;
@@ -39,5 +49,13 @@ public class User {
 
     public void setUvus(String uvus) {
         this.uvus = uvus;
+    }
+
+    public Project getProject() {
+        return project;
+    }
+
+    public void setProject(Project project) {
+        this.project = project;
     }
 }
