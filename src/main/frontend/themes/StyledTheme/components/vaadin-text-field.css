@@ -1,0 +1,18 @@
+/* frontend/themes/mi-tema/components/vaadin-text-field.css */
+
+/* En Vaadin, muchos componentes tienen "partes" internas (shadow DOM).
+  La parte del 'input' se llama [part~="input-field"].
+*/
+[part~="input-field"] {
+    /* Hacemos que el campo de texto también sea redondeado */
+    border-radius: var(--lumo-border-radius-l);
+    
+    /* Quizás un fondo un poco más suave */
+    background-color: var(--lumo-shade-5pct);
+}
+
+/* Estilo al enfocar (focus) */
+[part~="input-field"]:focus,
+[part~="input-field"]:focus-within {
+    box-shadow: 0 0 0 2px var(--lumo-primary-color-50pct); /* Resplandor pastel */
+}
