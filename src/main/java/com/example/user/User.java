@@ -13,7 +13,7 @@ public class User {
     @GeneratedValue(strategy = GenerationType.SEQUENCE)
     @Column(name = "user_id", nullable = false)
     @NotNull
-    private Integer id;
+    private Long id;
 
     @Column(name = "user_name", nullable = false)
     @NotBlank
@@ -27,11 +27,11 @@ public class User {
     @JoinColumn(name = "project_id", nullable = false)
     private Project project;
 
-    public Integer getId() {
+    public Long getId() {
         return id;
     }
 
-    public void setId(Integer id) {
+    public void setId(Long id) {
         this.id = id;
     }
 

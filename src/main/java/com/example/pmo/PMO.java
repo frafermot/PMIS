@@ -14,7 +14,7 @@ public class PMO {
     @GeneratedValue(strategy = GenerationType.SEQUENCE)
     @Column(name = "pmo_id", nullable = false)
     @NotNull
-    private Integer id;
+    private Long id;
 
     @Column(name = "pmo_name", nullable = false)
     @NotBlank
@@ -30,11 +30,11 @@ public class PMO {
     @NotNull
     private Manager director;
 
-    public Integer getId() {
+    public Long getId() {
         return id;
     }
 
-    public void setId(Integer id) {
+    public void setId(Long id) {
         this.id = id;
     }
 

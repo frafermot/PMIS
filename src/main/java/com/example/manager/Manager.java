@@ -11,7 +11,7 @@ public class Manager {
     @GeneratedValue(strategy = GenerationType.SEQUENCE)
     @Column(name = "manager_id", nullable = false)
     @NotNull
-    private Integer id;
+    private Long id;
 
     @Column(name = "manager_name", nullable = false)
     @NotBlank
@@ -25,11 +25,11 @@ public class Manager {
     @NotNull
     private Boolean isAdmin;
 
-    public Integer getId() {
+    public Long getId() {
         return id;
     }
 
-    public void setId(Integer id) {
+    public void setId(Long id) {
         this.id = id;
     }
 
