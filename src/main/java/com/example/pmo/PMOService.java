@@ -6,12 +6,14 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional
 public class PMOService {
-    
+
     private final PMORepository pmoRepository;
 
     public PMOService(PMORepository pmoRepository) {
         this.pmoRepository = pmoRepository;
     }
+
+    // Find all PMOs with details from the repository
 
     public PMO createOrUpdatePMO(PMO pmo) {
         return pmoRepository.save(pmo);
