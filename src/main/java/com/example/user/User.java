@@ -8,7 +8,7 @@ import jakarta.validation.constraints.*;
 @Entity
 @Table(name = "users")
 public class User {
-    
+
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE)
     @Column(name = "user_id", nullable = false)
@@ -23,8 +23,10 @@ public class User {
     @NotBlank
     private String uvus;
 
+    // Change nullable to false, we will asociate user with project after creating
+    // it
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "project_id", nullable = false)
+    @JoinColumn(name = "project_id", nullable = true)
     private Project project;
 
     public Long getId() {
