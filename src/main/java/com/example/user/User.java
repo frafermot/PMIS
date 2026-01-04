@@ -24,7 +24,7 @@ public class User {
     private String uvus;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "project_id", nullable = false)
+    @JoinColumn(name = "project_id")
     private Project project;
 
     public Long getId() {
