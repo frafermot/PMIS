@@ -13,6 +13,8 @@ public class ManagerService {
         this.managerRepository = managerRepository;
     }
 
+    // Find all managers with details from the repository
+
     public Manager createOrUpdateManager(Manager manager) {
         return managerRepository.save(manager);
     }

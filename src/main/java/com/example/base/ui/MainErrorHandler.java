@@ -21,7 +21,7 @@ class MainErrorHandler {
                     log.error("An unexpected error occurred", errorEvent.getThrowable());
                     errorEvent.getComponent().flatMap(Component::getUI).ifPresent(ui -> {
                         var notification = new Notification(
-                                "An unexpected error has occurred. Please try again later.");
+                                "Error: " + errorEvent.getThrowable().getMessage());
                         notification.addThemeVariants(NotificationVariant.LUMO_ERROR);
                         notification.setPosition(Notification.Position.TOP_CENTER);
                         notification.setDuration(3000);

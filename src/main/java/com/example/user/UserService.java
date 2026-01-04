@@ -13,6 +13,8 @@ public class UserService {
         this.userRepository = userRepository;
     }
 
+    // Find all users with details from the repository
+
     public User createOrUpdateUser(User user) {
         return userRepository.save(user);
     }

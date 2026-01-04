@@ -13,6 +13,8 @@ public class ProjectService {
         this.projectRepository = projectRepository;
     }
 
+    // Find all projects with details from the repository
+
     public Project createOrUpdateProject(Project project) {
         return projectRepository.save(project);
     }
