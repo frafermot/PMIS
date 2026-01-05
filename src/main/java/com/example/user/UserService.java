@@ -1,5 +1,7 @@
 package com.example.user;
 
+import java.util.List;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,8 +15,6 @@ public class UserService {
         this.userRepository = userRepository;
     }
 
-    // Find all users with details from the repository
-
     public User createOrUpdate(User user) {
         return userRepository.save(user);
     }
@@ -25,5 +25,9 @@ public class UserService {
 
     public void delete(Long userId) {
         userRepository.deleteById(userId);
+    }
+
+    public List<User> getAll() {
+        return userRepository.findAll();
     }
 }

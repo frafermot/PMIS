@@ -6,7 +6,4 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface PortfolioRepository extends JpaRepository<Portfolio, Long> {
 
-    // Find all portfolios with details from the repository,
-    // @EntityGraph(attributePaths = { "director" })
-
 }

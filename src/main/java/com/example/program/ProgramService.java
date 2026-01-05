@@ -1,5 +1,7 @@
 package com.example.program;
 
+import java.util.List;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,8 +15,6 @@ public class ProgramService {
         this.programRepository = programRepository;
     }
 
-    // Find all programs with details from the repository,
-
     public Program createOrUpdate(Program program) {
         return programRepository.save(program);
     }
@@ -25,5 +25,9 @@ public class ProgramService {
 
     public void delete(Long id) {
         programRepository.deleteById(id);
+    }
+
+    public List<Program> getAll() {
+        return programRepository.findAll();
     }
 }

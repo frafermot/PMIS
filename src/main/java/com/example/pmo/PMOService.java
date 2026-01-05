@@ -1,5 +1,7 @@
 package com.example.pmo;
 
+import java.util.List;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,8 +15,6 @@ public class PMOService {
         this.pmoRepository = pmoRepository;
     }
 
-    // Find all PMOs with details from the repository
-
     public PMO createOrUpdate(PMO pmo) {
         return pmoRepository.save(pmo);
     }
@@ -25,5 +25,9 @@ public class PMOService {
 
     public void delete(Long id) {
         pmoRepository.deleteById(id);
+    }
+
+    public List<PMO> getAll() {
+        return pmoRepository.findAll();
     }
 }

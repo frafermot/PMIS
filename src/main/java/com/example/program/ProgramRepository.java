@@ -6,6 +6,4 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface ProgramRepository extends JpaRepository<Program, Long> {
 
-    // Find all programs with details from the repository,
-    // @EntityGraph(attributePaths = { "portfolio", "director" })
 }

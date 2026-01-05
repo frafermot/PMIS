@@ -1,5 +1,7 @@
 package com.example.manager;
 
+import java.util.List;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,8 +15,6 @@ public class ManagerService {
         this.managerRepository = managerRepository;
     }
 
-    // Find all managers with details from the repository
-
     public Manager createOrUpdate(Manager manager) {
         return managerRepository.save(manager);
     }
@@ -25,5 +25,9 @@ public class ManagerService {
 
     public void delete(Long managerId) {
         managerRepository.deleteById(managerId);
+    }
+
+    public List<Manager> getAll() {
+        return managerRepository.findAll();
     }
 }

@@ -1,5 +1,7 @@
 package com.example.project;
 
+import java.util.List;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,8 +15,6 @@ public class ProjectService {
         this.projectRepository = projectRepository;
     }
 
-    // Find all projects with details from the repository
-
     public Project createOrUpdate(Project project) {
         return projectRepository.save(project);
     }
@@ -25,5 +25,9 @@ public class ProjectService {
 
     public void delete(Long id) {
         projectRepository.deleteById(id);
+    }
+
+    public List<Project> getAll() {
+        return projectRepository.findAll();
     }
 }
