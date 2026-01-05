@@ -72,7 +72,7 @@ public class GestorView extends VerticalLayout {
             newManager.setUvus(uvusField.getValue());
             newManager.setIsAdmin(isAdminCheckbox.getValue());
 
-            managerService.createOrUpdateManager(newManager);
+            managerService.createOrUpdate(newManager);
             updateList();
             dialog.close();
             Notification.show("Gestor creado exitosamente");
@@ -87,6 +87,6 @@ public class GestorView extends VerticalLayout {
     }
 
     private void updateList() {
-        grid.setItems(managerService.findAll());
+        grid.setItems(managerService.getAll());
     }
 }

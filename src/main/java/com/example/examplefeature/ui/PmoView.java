@@ -67,11 +67,11 @@ public class PmoView extends VerticalLayout {
         TextField nameField = new TextField("Nombre");
 
         ComboBox<Portfolio> portfolioComboBox = new ComboBox<>("Portafolio");
-        portfolioComboBox.setItems(portfolioService.findAll());
+        portfolioComboBox.setItems(portfolioService.getAll());
         portfolioComboBox.setItemLabelGenerator(Portfolio::getName);
 
         ComboBox<Manager> directorComboBox = new ComboBox<>("Director");
-        directorComboBox.setItems(managerService.findAll());
+        directorComboBox.setItems(managerService.getAll());
         directorComboBox.setItemLabelGenerator(Manager::getName);
 
         VerticalLayout dialogLayout = new VerticalLayout(nameField, portfolioComboBox, directorComboBox);
@@ -88,7 +88,7 @@ public class PmoView extends VerticalLayout {
             newPmo.setPortfolio(portfolioComboBox.getValue());
             newPmo.setDirector(directorComboBox.getValue());
 
-            pmoService.createOrUpdatePMO(newPmo);
+            pmoService.createOrUpdate(newPmo);
             updateList();
             dialog.close();
             Notification.show("PMO creada exitosamente");
@@ -103,6 +103,6 @@ public class PmoView extends VerticalLayout {
     }
 
     private void updateList() {
-        grid.setItems(pmoService.findAll());
+        grid.setItems(pmoService.getAll());
     }
 }

@@ -68,11 +68,11 @@ public class ProgramView extends VerticalLayout {
         TextField nameField = new TextField("Nombre");
 
         ComboBox<Portfolio> portfolioComboBox = new ComboBox<>("Portafolio");
-        portfolioComboBox.setItems(portfolioService.findAll());
+        portfolioComboBox.setItems(portfolioService.getAll());
         portfolioComboBox.setItemLabelGenerator(Portfolio::getName);
 
         ComboBox<Manager> directorComboBox = new ComboBox<>("Director");
-        directorComboBox.setItems(managerService.findAll());
+        directorComboBox.setItems(managerService.getAll());
         directorComboBox.setItemLabelGenerator(Manager::getName);
 
         VerticalLayout dialogLayout = new VerticalLayout(nameField, portfolioComboBox, directorComboBox);
@@ -89,7 +89,7 @@ public class ProgramView extends VerticalLayout {
             newProgram.setPortfolio(portfolioComboBox.getValue());
             newProgram.setDirector(directorComboBox.getValue());
 
-            programService.createOrUpdateProgram(newProgram);
+            programService.createOrUpdate(newProgram);
             updateList();
             dialog.close();
             Notification.show("Programa creado exitosamente");
@@ -104,6 +104,6 @@ public class ProgramView extends VerticalLayout {
     }
 
     private void updateList() {
-        grid.setItems(programService.findAll());
+        grid.setItems(programService.getAll());
     }
 }

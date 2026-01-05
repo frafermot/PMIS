@@ -63,7 +63,7 @@ public class PortfolioView extends VerticalLayout {
 
         TextField nameField = new TextField("Nombre");
         ComboBox<Manager> directorComboBox = new ComboBox<>("Director");
-        directorComboBox.setItems(managerService.findAll());
+        directorComboBox.setItems(managerService.getAll());
         directorComboBox.setItemLabelGenerator(Manager::getName);
 
         VerticalLayout dialogLayout = new VerticalLayout(nameField, directorComboBox);
@@ -79,7 +79,7 @@ public class PortfolioView extends VerticalLayout {
             newPortfolio.setName(nameField.getValue());
             newPortfolio.setDirector(directorComboBox.getValue());
 
-            portfolioService.createOrUpdatePortfolio(newPortfolio);
+            portfolioService.createOrUpdate(newPortfolio);
             updateList();
             dialog.close();
             Notification.show("Portfolio creado exitosamente");
@@ -94,6 +94,6 @@ public class PortfolioView extends VerticalLayout {
     }
 
     private void updateList() {
-        grid.setItems(portfolioService.findAll());
+        grid.setItems(portfolioService.getAll());
     }
 }

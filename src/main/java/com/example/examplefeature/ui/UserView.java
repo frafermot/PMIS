@@ -71,7 +71,7 @@ public class UserView extends VerticalLayout {
             newUser.setUvus(uvusField.getValue());
             // Project is optional now and removed from form
 
-            userService.createOrUpdateUser(newUser);
+            userService.createOrUpdate(newUser);
             updateList();
             dialog.close();
             Notification.show("Usuario creado exitosamente");
@@ -86,6 +86,6 @@ public class UserView extends VerticalLayout {
     }
 
     private void updateList() {
-        grid.setItems(userService.findAll());
+        grid.setItems(userService.getAll());
     }
 }

@@ -74,15 +74,15 @@ public class ProjectView extends VerticalLayout {
         TextField nameField = new TextField("Nombre");
 
         ComboBox<User> directorComboBox = new ComboBox<>("Director");
-        directorComboBox.setItems(userService.findAll());
+        directorComboBox.setItems(userService.getAll());
         directorComboBox.setItemLabelGenerator(User::getName);
 
         ComboBox<Program> programComboBox = new ComboBox<>("Programa");
-        programComboBox.setItems(programService.findAll());
+        programComboBox.setItems(programService.getAll());
         programComboBox.setItemLabelGenerator(Program::getName);
 
         ComboBox<Manager> sponsorComboBox = new ComboBox<>("Sponsor");
-        sponsorComboBox.setItems(managerService.findAll());
+        sponsorComboBox.setItems(managerService.getAll());
         sponsorComboBox.setItemLabelGenerator(Manager::getName);
 
         VerticalLayout dialogLayout = new VerticalLayout(nameField, directorComboBox, programComboBox, sponsorComboBox);
@@ -101,7 +101,7 @@ public class ProjectView extends VerticalLayout {
             newProject.setProgram(programComboBox.getValue());
             newProject.setSponsor(sponsorComboBox.getValue());
 
-            projectService.createOrUpdateProject(newProject);
+            projectService.createOrUpdate(newProject);
             updateList();
             dialog.close();
             Notification.show("Proyecto creado exitosamente");
@@ -116,6 +116,6 @@ public class ProjectView extends VerticalLayout {
     }
 
     private void updateList() {
-        grid.setItems(projectService.findAll());
+        grid.setItems(projectService.getAll());
     }
 }
