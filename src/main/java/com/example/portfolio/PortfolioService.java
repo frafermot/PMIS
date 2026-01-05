@@ -28,6 +28,7 @@ public class PortfolioService {
     }
 
     public List<Portfolio> getAll() {
-        return portfolioRepository.findAll();
+        List<Portfolio> portfolios = portfolioRepository.findAllWithDirector();
+        return portfolios;
     }
 }

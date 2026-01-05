@@ -28,6 +28,7 @@ public class PMOService {
     }
 
     public List<PMO> getAll() {
-        return pmoRepository.findAll();
+        List<PMO> pmos = pmoRepository.findAllWithRelations();
+        return pmos;
     }
 }

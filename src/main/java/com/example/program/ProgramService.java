@@ -28,6 +28,7 @@ public class ProgramService {
     }
 
     public List<Program> getAll() {
-        return programRepository.findAll();
+        List<Program> programs = programRepository.findAllWithRelations();
+        return programs;
     }
 }

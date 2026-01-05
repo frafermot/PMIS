@@ -28,6 +28,7 @@ public class UserService {
     }
 
     public List<User> getAll() {
-        return userRepository.findAll();
+        List<User> users = userRepository.findAllWithProject();
+        return users;
     }
 }
