@@ -15,15 +15,15 @@ public class ProjectService {
 
     // Find all projects with details from the repository
 
-    public Project createOrUpdateProject(Project project) {
+    public Project createOrUpdate(Project project) {
         return projectRepository.save(project);
     }
 
-    public Project getProjectById(Long id) {
+    public Project get(Long id) {
         return projectRepository.findById(id).orElse(null);
     }
 
-    public void deleteProject(Long id) {
+    public void delete(Long id) {
         projectRepository.deleteById(id);
     }
 }

@@ -15,15 +15,15 @@ public class ProgramService {
 
     // Find all programs with details from the repository,
 
-    public Program createOrUpdateProgram(Program program) {
+    public Program createOrUpdate(Program program) {
         return programRepository.save(program);
     }
 
-    public Program getProgramById(Long id) {
+    public Program get(Long id) {
         return programRepository.findById(id).orElse(null);
     }
 
-    public void deleteProgram(Long id) {
+    public void delete(Long id) {
         programRepository.deleteById(id);
     }
 }

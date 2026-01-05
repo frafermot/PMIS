@@ -15,15 +15,15 @@ public class PMOService {
 
     // Find all PMOs with details from the repository
 
-    public PMO createOrUpdatePMO(PMO pmo) {
+    public PMO createOrUpdate(PMO pmo) {
         return pmoRepository.save(pmo);
     }
 
-    public PMO getPMOById(Long id) {
+    public PMO get(Long id) {
         return pmoRepository.findById(id).orElse(null);
     }
 
-    public void deletePMO(Long id) {
+    public void delete(Long id) {
         pmoRepository.deleteById(id);
     }
 }

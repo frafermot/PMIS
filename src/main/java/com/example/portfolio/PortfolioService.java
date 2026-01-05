@@ -3,8 +3,6 @@ package com.example.portfolio;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-
 @Service
 @Transactional
 public class PortfolioService {
@@ -17,15 +15,15 @@ public class PortfolioService {
 
     // Find all portfolios with details from the repository
 
-    public Portfolio createOrUpdatePortfolio(Portfolio portfolio) {
+    public Portfolio createOrUpdate(Portfolio portfolio) {
         return portfolioRepository.save(portfolio);
     }
 
-    public Portfolio getPortfolioById(Long id) {
+    public Portfolio get(Long id) {
         return portfolioRepository.findById(id).orElse(null);
     }
 
-    public void deletePortfolio(Long id) {
+    public void delete(Long id) {
         portfolioRepository.deleteById(id);
     }
 }

@@ -15,15 +15,15 @@ public class ManagerService {
 
     // Find all managers with details from the repository
 
-    public Manager createOrUpdateManager(Manager manager) {
+    public Manager createOrUpdate(Manager manager) {
         return managerRepository.save(manager);
     }
 
-    public Manager getManager(Long managerId) {
+    public Manager get(Long managerId) {
         return managerRepository.findById(managerId).orElse(null);
     }
 
-    public void deleteManager(Long managerId) {
+    public void delete(Long managerId) {
         managerRepository.deleteById(managerId);
     }
 }

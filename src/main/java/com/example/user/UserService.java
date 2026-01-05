@@ -15,15 +15,15 @@ public class UserService {
 
     // Find all users with details from the repository
 
-    public User createOrUpdateUser(User user) {
+    public User createOrUpdate(User user) {
         return userRepository.save(user);
     }
 
-    public User getUser(Long userId) {
+    public User get(Long userId) {
         return userRepository.findById(userId).orElse(null);
     }
 
-    public void deleteUser(Long userId) {
+    public void delete(Long userId) {
         userRepository.deleteById(userId);
     }
 }
