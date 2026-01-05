@@ -47,42 +47,42 @@ public class DataInitializer implements CommandLineRunner {
             User user = new User();
             user.setName("User " + i);
             user.setUvus("uvus" + i);
-            userService.createOrUpdateUser(user);
+            userService.createOrUpdate(user);
         }
 
         Manager coordinador = new Manager();
         coordinador.setName("Juan Manuel Cordero Valle");
         coordinador.setUvus("jmcordero");
         coordinador.setIsAdmin(true);
-        managerService.createOrUpdateManager(coordinador);
+        managerService.createOrUpdate(coordinador);
 
         Portfolio portfolio = new Portfolio();
         portfolio.setName("PGPI 24/25");
         portfolio.setDirector(coordinador);
-        portfolioService.createOrUpdatePortfolio(portfolio);
+        portfolioService.createOrUpdate(portfolio);
 
         PMO pmo = new PMO();
         pmo.setName("Oficina de Proyectos 24/25");
         pmo.setDirector(coordinador);
         pmo.setPortfolio(portfolio);
-        pmoService.createOrUpdatePMO(pmo);
+        pmoService.createOrUpdate(pmo);
 
         Program program = new Program();
         program.setName("Lab 1");
         program.setPortfolio(portfolio);
         program.setDirector(coordinador);
-        programService.createOrUpdateProgram(program);
+        programService.createOrUpdate(program);
 
         for (int i = 1; i <= 2; i++) {
             Project project = new Project();
             project.setName("Proyecto " + i + " de Lab 1");
             project.setProgram(program);
             project.setSponsor(coordinador);
-            User pm = userService.getUser((long) 3 * i - 2);
+            User pm = userService.get((long) 3 * i - 2);
             project.setDirector(pm);
-            projectService.createOrUpdateProject(project);
+            projectService.createOrUpdate(project);
             pm.setProject(project);
-            userService.createOrUpdateUser(pm);
+            userService.createOrUpdate(pm);
         }
 
         for (int i = 1; i <= 3; i++) {
@@ -90,24 +90,24 @@ public class DataInitializer implements CommandLineRunner {
             manager.setName("Manager" + i);
             manager.setUvus("manageruvus" + i);
             manager.setIsAdmin(false);
-            managerService.createOrUpdateManager(manager);
+            managerService.createOrUpdate(manager);
         
             Program prog = new Program();
             prog.setName("Lab " + (i+1));
             prog.setPortfolio(portfolio);
             prog.setDirector(manager);
-            programService.createOrUpdateProgram(prog);
+            programService.createOrUpdate(prog);
 
             for (int j = 1; j <= 2; j++) {
                 Project proj = new Project();
                 proj.setName("Proyecto " + j + " de Lab " + (i+1));
                 proj.setProgram(prog);
                 proj.setSponsor(manager);
-                User pm = userService.getUser((long) 6 * i + 3*j - 2);
+                User pm = userService.get((long) 6 * i + 3*j - 2);
                 proj.setDirector(pm);
-                projectService.createOrUpdateProject(proj);
+                projectService.createOrUpdate(proj);
                 pm.setProject(proj);
-                userService.createOrUpdateUser(pm);
+                userService.createOrUpdate(pm);
             }
         }
     }
