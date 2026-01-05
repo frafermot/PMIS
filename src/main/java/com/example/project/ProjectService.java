@@ -28,6 +28,7 @@ public class ProjectService {
     }
 
     public List<Project> getAll() {
-        return projectRepository.findAll();
+        List<Project> projects = projectRepository.findAllWithRelations();
+        return projects;
     }
 }
