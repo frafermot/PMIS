@@ -15,7 +15,7 @@ public class Project {
     @GeneratedValue(strategy = GenerationType.SEQUENCE)
     @Column(name = "project_id", nullable = false)
     @NotNull
-    private Integer id;
+    private Long id;
 
     @Column(name = "project_name", nullable = false)
     @NotBlank
@@ -36,11 +36,11 @@ public class Project {
     @NotNull
     private Manager sponsor;
 
-    public Integer getId() {
+    public Long getId() {
         return id;
     }
 
-    public void setId(Integer id) {
+    public void setId(Long id) {
         this.id = id;
     }
 

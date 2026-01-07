@@ -5,8 +5,8 @@ import com.example.manager.Manager;
 import com.example.manager.ManagerService;
 import com.example.portfolio.Portfolio;
 import com.example.portfolio.PortfolioService;
-import com.example.pmo.PMO;
-import com.example.pmo.PMOService;
+import com.example.program.Program;
+import com.example.program.ProgramService;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.dialog.Dialog;
@@ -20,49 +20,50 @@ import com.vaadin.flow.router.Menu;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 
-@Route(value = "pmo", layout = MainLayout.class)
-@PageTitle("Oficina de Proyectos")
-@Menu(order = 2, icon = "vaadin:chart-timeline", title = "Oficina de Proyectos")
-public class PmoView extends VerticalLayout {
+@Route(value = "programas", layout = MainLayout.class)
+@PageTitle("Programas")
+@Menu(order = 4, icon = "vaadin:archives", title = "Programas")
+public class ProgramView extends VerticalLayout {
 
-    private final PMOService pmoService;
+    private final ProgramService programService;
     private final PortfolioService portfolioService;
     private final ManagerService managerService;
-    private final Grid<PMO> grid = new Grid<>(PMO.class);
+    private final Grid<Program> grid = new Grid<>(Program.class);
 
-    public PmoView(PMOService pmoService, PortfolioService portfolioService, ManagerService managerService) {
-        this.pmoService = pmoService;
+    public ProgramView(ProgramService programService, PortfolioService portfolioService,
+            ManagerService managerService) {
+        this.programService = programService;
         this.portfolioService = portfolioService;
         this.managerService = managerService;
 
         setSizeFull();
         configureGrid();
 
-        add(new H2("Vista de Oficina de Dirección de Proyectos (PMO)"), createToolbar(), grid);
+        add(new H2("Vista de Programas"), createToolbar(), grid);
         updateList();
     }
 
     private void configureGrid() {
         grid.setSizeFull();
         grid.removeAllColumns();
-        grid.addColumn(PMO::getId).setHeader("ID");
-        grid.addColumn(PMO::getName).setHeader("Nombre");
-        grid.addColumn(pmo -> pmo.getPortfolio() != null ? pmo.getPortfolio().getName() : "Sin Portafolio")
+        grid.addColumn(Program::getId).setHeader("ID");
+        grid.addColumn(Program::getName).setHeader("Nombre");
+        grid.addColumn(program -> program.getPortfolio() != null ? program.getPortfolio().getName() : "Sin Portafolio")
                 .setHeader("Portafolio");
-        grid.addColumn(pmo -> pmo.getDirector() != null ? pmo.getDirector().getName() : "Sin Director")
+        grid.addColumn(program -> program.getDirector() != null ? program.getDirector().getName() : "Sin Director")
                 .setHeader("Director");
     }
 
     private HorizontalLayout createToolbar() {
-        Button addPmoButton = new Button("Añadir PMO");
-        addPmoButton.addClickListener(e -> openCreatePmoDialog());
+        Button addProgramButton = new Button("Añadir Programa");
+        addProgramButton.addClickListener(e -> openCreateProgramDialog());
 
-        return new HorizontalLayout(addPmoButton);
+        return new HorizontalLayout(addProgramButton);
     }
 
-    private void openCreatePmoDialog() {
+    private void openCreateProgramDialog() {
         Dialog dialog = new Dialog();
-        dialog.setHeaderTitle("Nueva PMO");
+        dialog.setHeaderTitle("Nuevo Programa");
 
         TextField nameField = new TextField("Nombre");
 
@@ -83,15 +84,15 @@ public class PmoView extends VerticalLayout {
                 return;
             }
 
-            PMO newPmo = new PMO();
-            newPmo.setName(nameField.getValue());
-            newPmo.setPortfolio(portfolioComboBox.getValue());
-            newPmo.setDirector(directorComboBox.getValue());
+            Program newProgram = new Program();
+            newProgram.setName(nameField.getValue());
+            newProgram.setPortfolio(portfolioComboBox.getValue());
+            newProgram.setDirector(directorComboBox.getValue());
 
-            pmoService.createOrUpdate(newPmo);
+            programService.createOrUpdate(newProgram);
             updateList();
             dialog.close();
-            Notification.show("PMO creada exitosamente");
+            Notification.show("Programa creado exitosamente");
         });
 
         Button cancelButton = new Button("Cancelar", e -> dialog.close());
@@ -103,6 +104,6 @@ public class PmoView extends VerticalLayout {
     }
 
     private void updateList() {
-        grid.setItems(pmoService.getAll());
+        grid.setItems(programService.getAll());
     }
 }
