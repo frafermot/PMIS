@@ -58,6 +58,7 @@ jobs:
             type=sha
 
       - name: Build and push Docker image
+        if: ${{github.base_ref == 'main' }}
         uses: docker/build-push-action@v5
         with:
           context: .
