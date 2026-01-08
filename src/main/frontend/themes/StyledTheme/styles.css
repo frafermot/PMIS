@@ -1,0 +1,42 @@
+/* frontend/themes/mi-tema/styles.css */
+
+/* 1. Importa una fuente moderna (ej. 'Inter' o 'Roboto' desde Google Fonts) */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap');
+
+/* 2. Aplica estilos globales en el 'html' tag */
+html {
+    /* ------------------------------ */
+    /* --- TIPOGRAFÍA MODERNA --- */
+    /* ------------------------------ */
+    --lumo-font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    
+    /* ------------------------------ */
+    /* --- COLORES PASTEL FORMALES --- */
+    /* ------------------------------ */
+    
+    /* Color Primario (ej. un azul pastel) */
+    --lumo-primary-color: hsl(200, 70%, 65%);
+    --lumo-primary-color-50pct: hsla(200, 70%, 65%, 0.5);
+    --lumo-primary-color-10pct: hsla(200, 70%, 65%, 0.1);
+    --lumo-primary-text-color: hsl(200, 100%, 20%); /* Texto oscuro para contraste */
+
+    /* Colores de "Error" (ej. un rojo pastel) */
+    --lumo-error-color: hsl(0, 70%, 70%);
+    --lumo-error-text-color: hsl(0, 80%, 25%);
+
+    /* Colores de "Éxito" (ej. un verde pastel) */
+    --lumo-success-color: hsl(145, 60%, 60%);
+    --lumo-success-text-color: hsl(145, 80%, 20%);
+    
+    /* Colores base (tonos neutros) */
+    --lumo-base-color: #FFFFFF; /* Fondo principal blanco limpio */
+    --lumo-shade-5pct: hsla(214, 60%, 25%, 0.05);
+    --lumo-shade-10pct: hsla(214, 55%, 25%, 0.1);
+    
+    /* ------------------------------ */
+    /* --- REDONDEZ GLOBAL (Opcional) --- */
+    /* ------------------------------ */
+    /* Puedes definir un radio de borde global aquí */
+    --lumo-border-radius-m: 1em; /* Radio medio */
+    --lumo-border-radius-l: 1.5em; /* Radio grande */
+}

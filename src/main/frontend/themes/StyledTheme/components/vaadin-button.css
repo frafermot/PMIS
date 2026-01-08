@@ -1,0 +1,18 @@
+/* frontend/themes/mi-tema/components/vaadin-button.css */
+
+/* :host aplica los estilos al componente 'vaadin-button' */
+:host {
+    /* Hacemos que todos los botones usen el radio de borde "grande" 
+       que definimos en styles.css (o un valor fijo). */
+       
+    /* Opción 1: Usar nuestra variable global */
+    --lumo-border-radius: var(--lumo-border-radius-l); 
+    
+    /* Opción 2: Forzar un valor (para botones "píldora") */
+    --lumo-border-radius: 9999px;
+}
+
+/* Estilo para botones de solo icono (hacerlos perfectamente circulares) */
+:host([theme~="icon"]) {
+    border-radius: 50%;
+}

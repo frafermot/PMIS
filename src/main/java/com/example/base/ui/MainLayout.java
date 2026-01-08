@@ -1,6 +1,7 @@
 package com.example.base.ui;
 
 import com.vaadin.flow.component.applayout.AppLayout;
+import com.vaadin.flow.component.applayout.DrawerToggle; // Import para el botón de menú
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.Icon;
@@ -9,32 +10,72 @@ import com.vaadin.flow.component.orderedlayout.Scroller;
 import com.vaadin.flow.component.sidenav.SideNav;
 import com.vaadin.flow.component.sidenav.SideNavItem;
 import com.vaadin.flow.router.Layout;
-import com.vaadin.flow.server.menu.MenuConfiguration;
+import com.vaadin.flow.router.RouterLayout; // Necesario para el Footer
+import com.vaadin.flow.server.menu.MenuConfiguration; // Import opcional
 import com.vaadin.flow.server.menu.MenuEntry;
-
-import static com.vaadin.flow.theme.lumo.LumoUtility.*;
+import com.vaadin.flow.theme.lumo.LumoUtility.AlignItems;
+import com.vaadin.flow.theme.lumo.LumoUtility.Display; // Importa tu tema
+import com.vaadin.flow.theme.lumo.LumoUtility.Flex;
+import com.vaadin.flow.theme.lumo.LumoUtility.FlexDirection;
+import com.vaadin.flow.theme.lumo.LumoUtility.FontSize;
+import com.vaadin.flow.theme.lumo.LumoUtility.FontWeight;
+import com.vaadin.flow.theme.lumo.LumoUtility.Gap;
+import com.vaadin.flow.theme.lumo.LumoUtility.IconSize;
+import com.vaadin.flow.theme.lumo.LumoUtility.JustifyContent;
+import com.vaadin.flow.theme.lumo.LumoUtility.Margin;
+import com.vaadin.flow.theme.lumo.LumoUtility.Padding;
+import com.vaadin.flow.theme.lumo.LumoUtility.TextColor;
 
 @Layout
-public final class MainLayout extends AppLayout {
+public final class MainLayout extends AppLayout implements RouterLayout { // Implementamos RouterLayout
 
+    // 1. ÁREA DE CONTENIDO
+    // Este Div será el contenedor de tus vistas (PortfolioView, etc.)
+    private final Div contentArea = new Div();
+
+    // Constructor del Esqueleto
     MainLayout() {
         setPrimarySection(Section.DRAWER);
-        addToDrawer(createHeader(), new Scroller(createSideNav()));
+
+        // 2. HEADER (Navbar - Barra Superior)
+        // Creamos el botón "hamburguesa" y la cabecera (logo/título)
+        var appHeader = createHeader();
+        addToNavbar(new DrawerToggle(), appHeader);
+
+        // 3. SIDEBAR (Drawer - Menú Lateral)
+        // Añadimos el menú navegable (que ya tenías)
+        addToDrawer(new Scroller(createSideNav()));
+
+        // 4. FOOTER y CONTENIDO
+        // Creamos el footer
+        var appFooter = createFooter();
+
+        // Creamos un wrapper para el contenido y el footer
+        // Esto nos permite tener un "sticky footer"
+        Div mainContentWrapper = new Div(contentArea, appFooter);
+
+        // Estilos para que el footer se quede abajo
+        mainContentWrapper.addClassNames(Display.FLEX, FlexDirection.COLUMN, "h-full");
+        contentArea.addClassNames(Flex.GROW); // El contenido crece para empujar el footer
+
+        // Asignamos este wrapper como el contenido principal del AppLayout
+        setContent(mainContentWrapper);
     }
 
+    // Cabecera (Logo y Nombre) - Ahora es horizontal
     private Div createHeader() {
-        // TODO Replace with real application logo and name
         var appLogo = VaadinIcon.CUBES.create();
         appLogo.addClassNames(TextColor.PRIMARY, IconSize.LARGE);
 
-        var appName = new Span("App");
+        var appName = new Span("PMIS");
         appName.addClassNames(FontWeight.SEMIBOLD, FontSize.LARGE);
 
         var header = new Div(appLogo, appName);
-        header.addClassNames(Display.FLEX, Padding.MEDIUM, Gap.MEDIUM, AlignItems.CENTER);
+        header.addClassNames(Display.FLEX, Padding.SMALL, Gap.MEDIUM, AlignItems.CENTER);
         return header;
     }
 
+    // Menú Lateral (Sidebar) - Sin cambios
     private SideNav createSideNav() {
         var nav = new SideNav();
         nav.addClassNames(Margin.Horizontal.MEDIUM);
@@ -42,11 +83,37 @@ public final class MainLayout extends AppLayout {
         return nav;
     }
 
+    // Ítems del Menú - Sin cambios
     private SideNavItem createSideNavItem(MenuEntry menuEntry) {
         if (menuEntry.icon() != null) {
             return new SideNavItem(menuEntry.title(), menuEntry.path(), new Icon(menuEntry.icon()));
         } else {
             return new SideNavItem(menuEntry.title(), menuEntry.path());
+        }
+    }
+
+    // Implementación del Footer
+    private Div createFooter() {
+        var footer = new Div(new Span("© 2024 Nombre de tu Empresa | Todos los derechos reservados"));
+
+        // Estilos para el footer
+        footer.addClassNames(
+                Display.FLEX,
+                AlignItems.CENTER,
+                JustifyContent.CENTER,
+                Padding.MEDIUM,
+                TextColor.SECONDARY,
+                "text-xs" // Texto pequeño
+        );
+        return footer;
+    }
+
+    // Este método es requerido por RouterLayout.
+    // Se asegura de que las vistas se carguen en nuestro 'contentArea'
+    @Override
+    public void showRouterLayoutContent(com.vaadin.flow.component.HasElement content) {
+        if (content != null) {
+            contentArea.getElement().appendChild(content.getElement());
         }
     }
 }
