@@ -21,8 +21,7 @@ public class Project {
     private String name;
 
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "director_id", nullable = false, unique = true)
-    @NotNull
+    @JoinColumn(name = "director_id", unique = true)
     private User director;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -31,8 +30,7 @@ public class Project {
     private Program program;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "sponsor_id", nullable = false)
-    @NotNull
+    @JoinColumn(name = "sponsor_id")
     private User sponsor;
 
     public Long getId() {
@@ -73,5 +71,20 @@ public class Project {
 
     public void setSponsor(User sponsor) {
         this.sponsor = sponsor;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o)
+            return true;
+        if (!(o instanceof Project))
+            return false;
+        Project project = (Project) o;
+        return getId() != null && getId().equals(project.getId());
+    }
+
+    @Override
+    public int hashCode() {
+        return getClass().hashCode();
     }
 }

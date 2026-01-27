@@ -1,5 +1,7 @@
 package com.example.examplefeature.ui;
 
+import java.util.List;
+
 import com.example.base.ui.MainLayout;
 import com.example.user.User;
 import com.example.user.UserService;
@@ -21,9 +23,12 @@ import com.vaadin.flow.router.Menu;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 
+import jakarta.annotation.security.RolesAllowed;
+
 @Route(value = "pmo", layout = MainLayout.class)
 @PageTitle("Oficina de Proyectos")
 @Menu(order = 2, icon = "vaadin:chart-timeline", title = "Oficina de Proyectos")
+@RolesAllowed("ADMIN")
 public class PmoView extends VerticalLayout {
 
     private final PMOService pmoService;
@@ -52,18 +57,24 @@ public class PmoView extends VerticalLayout {
                 .setHeader("Portafolio");
         grid.addColumn(pmo -> pmo.getDirector() != null ? pmo.getDirector().getName() : "Sin Director")
                 .setHeader("Director");
+
+        grid.asSingleSelect().addValueChangeListener(event -> {
+            if (event.getValue() != null) {
+                openPmoDialog(event.getValue());
+            }
+        });
     }
 
     private HorizontalLayout createToolbar() {
         Button addPmoButton = new Button("Añadir PMO");
-        addPmoButton.addClickListener(e -> openCreatePmoDialog());
+        addPmoButton.addClickListener(e -> openPmoDialog(null));
 
         return new HorizontalLayout(addPmoButton);
     }
 
-    private void openCreatePmoDialog() {
+    private void openPmoDialog(PMO pmo) {
         Dialog dialog = new Dialog();
-        dialog.setHeaderTitle("Nueva PMO");
+        dialog.setHeaderTitle(pmo == null ? "Nueva PMO" : "Editar PMO");
 
         TextField nameField = new TextField("Nombre");
 
@@ -72,8 +83,14 @@ public class PmoView extends VerticalLayout {
         portfolioComboBox.setItemLabelGenerator(Portfolio::getName);
 
         ComboBox<User> directorComboBox = new ComboBox<>("Director");
-        directorComboBox.setItems(userService.findAllByRole(Role.MANAGER));
+        directorComboBox.setItems(userService.findAllByRoles(List.of(Role.MANAGER, Role.ADMIN)));
         directorComboBox.setItemLabelGenerator(User::getName);
+
+        if (pmo != null) {
+            nameField.setValue(pmo.getName());
+            portfolioComboBox.setValue(pmo.getPortfolio());
+            directorComboBox.setValue(pmo.getDirector());
+        }
 
         VerticalLayout dialogLayout = new VerticalLayout(nameField, portfolioComboBox, directorComboBox);
         dialog.add(dialogLayout);
@@ -84,23 +101,50 @@ public class PmoView extends VerticalLayout {
                 return;
             }
 
-            PMO newPmo = new PMO();
-            newPmo.setName(nameField.getValue());
-            newPmo.setPortfolio(portfolioComboBox.getValue());
-            newPmo.setDirector(directorComboBox.getValue());
+            try {
+                PMO pmoToSave = pmo == null ? new PMO() : pmo;
+                pmoToSave.setName(nameField.getValue());
+                pmoToSave.setPortfolio(portfolioComboBox.getValue());
+                pmoToSave.setDirector(directorComboBox.getValue());
 
-            pmoService.createOrUpdate(newPmo);
-            updateList();
-            dialog.close();
-            Notification.show("PMO creada exitosamente");
+                pmoService.createOrUpdate(pmoToSave);
+                updateList();
+                dialog.close();
+                Notification.show("PMO guardada exitosamente");
+            } catch (SecurityException ex) {
+                Notification.show("Error: " + ex.getMessage(), 5000, Notification.Position.MIDDLE);
+            }
         });
 
         Button cancelButton = new Button("Cancelar", e -> dialog.close());
 
+        Button deleteButton = new Button("Eliminar", e -> {
+            if (pmo != null) {
+                try {
+                    pmoService.delete(pmo.getId());
+                    updateList();
+                    dialog.close();
+                    Notification.show("PMO eliminada exitosamente");
+                } catch (SecurityException ex) {
+                    Notification.show("Error: " + ex.getMessage(), 5000, Notification.Position.MIDDLE);
+                }
+            }
+        });
+        deleteButton.getStyle().set("color", "red");
+
         dialog.getFooter().add(cancelButton);
+        if (pmo != null) {
+            dialog.getFooter().add(deleteButton);
+        }
         dialog.getFooter().add(saveButton);
 
         dialog.open();
+
+        dialog.addOpenedChangeListener(e -> {
+            if (!e.isOpened()) {
+                grid.asSingleSelect().clear();
+            }
+        });
     }
 
     private void updateList() {

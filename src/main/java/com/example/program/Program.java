@@ -26,8 +26,7 @@ public class Program {
     private Portfolio portfolio;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "director_id", nullable = false)
-    @NotNull
+    @JoinColumn(name = "director_id")
     private User director;
 
     public Long getId() {
@@ -60,5 +59,20 @@ public class Program {
 
     public void setDirector(User director) {
         this.director = director;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o)
+            return true;
+        if (!(o instanceof Program))
+            return false;
+        Program program = (Program) o;
+        return getId() != null && getId().equals(program.getId());
+    }
+
+    @Override
+    public int hashCode() {
+        return getClass().hashCode();
     }
 }

@@ -52,6 +52,12 @@ public class GestorView extends VerticalLayout {
         grid.addColumn(User::getName).setHeader("Nombre");
         grid.addColumn(User::getUvus).setHeader("UVUS");
         grid.addColumn(user -> user.getRole() == Role.ADMIN ? "Sí" : "No").setHeader("Es Admin");
+
+        grid.asSingleSelect().addValueChangeListener(event -> {
+            if (event.getValue() != null) {
+                openGestorDetailDialog(event.getValue());
+            }
+        });
     }
 
     private HorizontalLayout createToolbar() {
@@ -59,6 +65,83 @@ public class GestorView extends VerticalLayout {
         addManagerButton.addClickListener(e -> openCreateManagerDialog());
 
         return new HorizontalLayout(addManagerButton);
+    }
+
+    private void openGestorDetailDialog(User user) {
+        Dialog dialog = new Dialog();
+        dialog.setHeaderTitle("Detalles del Gestor");
+
+        TextField nameField = new TextField("Nombre");
+        nameField.setValue(user.getName());
+        nameField.setReadOnly(true);
+
+        TextField uvusField = new TextField("UVUS");
+        uvusField.setValue(user.getUvus());
+        uvusField.setReadOnly(true);
+
+        TextField isAdminField = new TextField("Es Admin");
+        isAdminField.setValue(user.getRole() == Role.ADMIN ? "Sí" : "No");
+        isAdminField.setReadOnly(true);
+
+        VerticalLayout dialogLayout = new VerticalLayout(nameField, uvusField, isAdminField);
+        dialog.add(dialogLayout);
+
+        Button closeButton = new Button("Cerrar", e -> dialog.close());
+
+        Button deleteButton = new Button("Eliminar", e -> {
+            // Check if trying to delete an admin
+            if (user.getRole() == Role.ADMIN) {
+                Notification.show("No se puede eliminar un usuario con rol ADMIN", 5000, Notification.Position.MIDDLE);
+                return;
+            }
+
+            try {
+                if (userService.hasAssignedEntities(user.getId())) {
+                    Dialog confirmDialog = new Dialog();
+                    confirmDialog.setHeaderTitle("Eliminar Gestor");
+                    confirmDialog.add(
+                            "Este gestor está asignado como director o sponsor en otros elementos. ¿Desea desasignarlo y eliminarlo?");
+
+                    Button confirmDeleteButton = new Button("Eliminar", event -> {
+                        try {
+                            userService.deleteSafe(user.getId());
+                            updateList();
+                            dialog.close();
+                            confirmDialog.close();
+                            Notification.show("Gestor eliminado y desasignado exitosamente");
+                        } catch (SecurityException ex) {
+                            Notification.show("Error: " + ex.getMessage(), 5000, Notification.Position.MIDDLE);
+                        }
+                    });
+                    confirmDeleteButton.getStyle().set("color", "red");
+
+                    Button cancelDeleteButton = new Button("Cancelar", event -> confirmDialog.close());
+
+                    confirmDialog.getFooter().add(cancelDeleteButton);
+                    confirmDialog.getFooter().add(confirmDeleteButton);
+                    confirmDialog.open();
+                } else {
+                    userService.delete(user.getId());
+                    updateList();
+                    dialog.close();
+                    Notification.show("Gestor eliminado exitosamente");
+                }
+            } catch (SecurityException ex) {
+                Notification.show("Error: " + ex.getMessage(), 5000, Notification.Position.MIDDLE);
+            }
+        });
+        deleteButton.getStyle().set("color", "red");
+
+        dialog.getFooter().add(closeButton);
+        dialog.getFooter().add(deleteButton);
+
+        dialog.open();
+
+        dialog.addOpenedChangeListener(e -> {
+            if (!e.isOpened()) {
+                grid.asSingleSelect().clear();
+            }
+        });
     }
 
     private void openCreateManagerDialog() {

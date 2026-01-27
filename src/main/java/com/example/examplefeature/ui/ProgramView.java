@@ -1,5 +1,7 @@
 package com.example.examplefeature.ui;
 
+import java.util.List;
+
 import com.example.base.ui.MainLayout;
 
 import com.example.user.User;
@@ -10,7 +12,7 @@ import com.example.portfolio.PortfolioService;
 import com.example.program.Program;
 import com.example.program.ProgramService;
 import com.vaadin.flow.component.button.Button;
-import com.vaadin.flow.component.combobox.ComboBox;
+import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.html.H2;
@@ -57,55 +59,110 @@ public class ProgramView extends VerticalLayout {
                 .setHeader("Portafolio");
         grid.addColumn(program -> program.getDirector() != null ? program.getDirector().getName() : "Sin Director")
                 .setHeader("Director");
+
+        grid.asSingleSelect().addValueChangeListener(event -> {
+            if (event.getValue() != null) {
+                openProgramDialog(event.getValue());
+            }
+        });
     }
 
     private HorizontalLayout createToolbar() {
         Button addProgramButton = new Button("Añadir Programa");
-        addProgramButton.addClickListener(e -> openCreateProgramDialog());
+        addProgramButton.addClickListener(e -> openProgramDialog(null));
 
         return new HorizontalLayout(addProgramButton);
     }
 
-    private void openCreateProgramDialog() {
+    private void openProgramDialog(Program program) {
         Dialog dialog = new Dialog();
-        dialog.setHeaderTitle("Nuevo Programa");
+        dialog.setHeaderTitle(program == null ? "Nuevo Programa" : "Editar Programa");
 
         TextField nameField = new TextField("Nombre");
 
-        ComboBox<Portfolio> portfolioComboBox = new ComboBox<>("Portafolio");
-        portfolioComboBox.setItems(portfolioService.getAll());
-        portfolioComboBox.setItemLabelGenerator(Portfolio::getName);
+        Select<Portfolio> portfolioSelect = new Select<>();
+        portfolioSelect.setLabel("Portafolio");
+        portfolioSelect.setItems(portfolioService.getAll());
+        portfolioSelect.setItemLabelGenerator(Portfolio::getName);
 
-        ComboBox<User> directorComboBox = new ComboBox<>("Director");
-        directorComboBox.setItems(userService.findAllByRole(Role.MANAGER));
-        directorComboBox.setItemLabelGenerator(User::getName);
+        Select<User> directorSelect = new Select<>();
+        directorSelect.setLabel("Director");
+        directorSelect.setItems(userService.findAllByRoles(List.of(Role.MANAGER, Role.ADMIN)));
+        directorSelect.setItemLabelGenerator(User::getName);
 
-        VerticalLayout dialogLayout = new VerticalLayout(nameField, portfolioComboBox, directorComboBox);
+        if (program != null) {
+            nameField.setValue(program.getName());
+            portfolioSelect.setValue(program.getPortfolio());
+            directorSelect.setValue(program.getDirector());
+        }
+
+        VerticalLayout dialogLayout = new VerticalLayout(nameField, portfolioSelect, directorSelect);
         dialog.add(dialogLayout);
 
         Button saveButton = new Button("Guardar", e -> {
-            if (nameField.isEmpty() || portfolioComboBox.isEmpty() || directorComboBox.isEmpty()) {
+            if (nameField.isEmpty() || portfolioSelect.isEmpty() || directorSelect.isEmpty()) {
                 Notification.show("Por favor rellene todos los campos");
                 return;
             }
 
-            Program newProgram = new Program();
-            newProgram.setName(nameField.getValue());
-            newProgram.setPortfolio(portfolioComboBox.getValue());
-            newProgram.setDirector(directorComboBox.getValue());
+            Program programToSave = program == null ? new Program() : program;
+            programToSave.setName(nameField.getValue());
+            programToSave.setPortfolio(portfolioSelect.getValue());
+            programToSave.setDirector(directorSelect.getValue());
 
-            programService.createOrUpdate(newProgram);
+            programService.createOrUpdate(programToSave);
             updateList();
             dialog.close();
-            Notification.show("Programa creado exitosamente");
+            Notification.show("Programa guardado exitosamente");
         });
 
         Button cancelButton = new Button("Cancelar", e -> dialog.close());
 
+        Button deleteButton = new Button("Eliminar", e -> {
+            if (program != null) {
+                if (programService.hasProjects(program.getId())) {
+                    Dialog confirmDialog = new Dialog();
+                    confirmDialog.setHeaderTitle("Eliminar Programa");
+                    confirmDialog.add(
+                            "Este programa tiene proyectos asociados. ¿Desea eliminarlo junto con todos sus proyectos?");
+
+                    Button confirmDeleteButton = new Button("Eliminar Todo", event -> {
+                        programService.deleteWithCascade(program.getId());
+                        updateList();
+                        dialog.close();
+                        confirmDialog.close();
+                        Notification.show("Programa y proyectos eliminados exitosamente");
+                    });
+                    confirmDeleteButton.getStyle().set("color", "red");
+
+                    Button cancelDeleteButton = new Button("Cancelar", event -> confirmDialog.close());
+
+                    confirmDialog.getFooter().add(cancelDeleteButton);
+                    confirmDialog.getFooter().add(confirmDeleteButton);
+                    confirmDialog.open();
+                } else {
+                    programService.delete(program.getId());
+                    updateList();
+                    dialog.close();
+                    Notification.show("Programa eliminado exitosamente");
+                }
+            }
+        });
+        deleteButton.getStyle().set("color", "red");
+
         dialog.getFooter().add(cancelButton);
+        if (program != null) {
+            dialog.getFooter().add(deleteButton);
+        }
         dialog.getFooter().add(saveButton);
 
         dialog.open();
+
+        dialog.addOpenedChangeListener(e -> {
+            if (!e.isOpened()) {
+                grid.asSingleSelect().clear();
+            }
+        });
     }
 
     private void updateList() {

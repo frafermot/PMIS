@@ -16,4 +16,17 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     List<User> findAllByRole(Role role);
 
+    List<User> findAllByRoleIn(List<Role> roles);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("UPDATE User u SET u.project = null WHERE u.project.id IN (SELECT p.id FROM Project p WHERE p.program.id = :programId)")
+    void unassignUsersFromProjectsInProgram(
+            @org.springframework.data.repository.query.Param("programId") Long programId);
+
+    long countByProjectId(Long projectId);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("UPDATE User u SET u.project = null WHERE u.project.id = :projectId")
+    void unassignUsersFromProject(@org.springframework.data.repository.query.Param("projectId") Long projectId);
+
 }
