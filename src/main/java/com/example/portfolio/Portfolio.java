@@ -20,8 +20,7 @@ public class Portfolio {
     private String name;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "director_id", nullable = false)
-    @NotNull
+    @JoinColumn(name = "director_id")
     private User director;
 
     public Long getId() {
@@ -46,5 +45,20 @@ public class Portfolio {
 
     public void setDirector(User director) {
         this.director = director;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o)
+            return true;
+        if (!(o instanceof Portfolio))
+            return false;
+        Portfolio portfolio = (Portfolio) o;
+        return getId() != null && getId().equals(portfolio.getId());
+    }
+
+    @Override
+    public int hashCode() {
+        return getClass().hashCode();
     }
 }

@@ -52,6 +52,12 @@ public class UserView extends VerticalLayout {
         grid.addColumn(User::getUvus).setHeader("UVUS");
         grid.addColumn(user -> user.getProject() != null ? user.getProject().getName() : "Sin Proyecto")
                 .setHeader("Proyecto");
+
+        grid.asSingleSelect().addValueChangeListener(event -> {
+            if (event.getValue() != null) {
+                openUserDetailDialog(event.getValue());
+            }
+        });
     }
 
     private HorizontalLayout createToolbar() {
@@ -59,6 +65,77 @@ public class UserView extends VerticalLayout {
         addUserButton.addClickListener(e -> openCreateUserDialog());
 
         return new HorizontalLayout(addUserButton);
+    }
+
+    private void openUserDetailDialog(User user) {
+        Dialog dialog = new Dialog();
+        dialog.setHeaderTitle("Detalles del Usuario");
+
+        TextField nameField = new TextField("Nombre");
+        nameField.setValue(user.getName());
+        nameField.setReadOnly(true);
+
+        TextField uvusField = new TextField("UVUS");
+        uvusField.setValue(user.getUvus());
+        uvusField.setReadOnly(true);
+
+        TextField projectField = new TextField("Proyecto");
+        projectField.setValue(user.getProject() != null ? user.getProject().getName() : "Sin Proyecto");
+        projectField.setReadOnly(true);
+
+        VerticalLayout dialogLayout = new VerticalLayout(nameField, uvusField, projectField);
+        dialog.add(dialogLayout);
+
+        Button closeButton = new Button("Cerrar", e -> dialog.close());
+
+        Button deleteButton = new Button("Eliminar", e -> {
+            try {
+                if (userService.hasAssignedEntities(user.getId())) {
+                    Dialog confirmDialog = new Dialog();
+                    confirmDialog.setHeaderTitle("Eliminar Usuario");
+                    confirmDialog.add(
+                            "Este usuario está asignado como director o sponsor en otros elementos. ¿Desea desasignarlo y eliminarlo?");
+
+                    Button confirmDeleteButton = new Button("Eliminar", event -> {
+                        try {
+                            userService.deleteSafe(user.getId());
+                            updateList();
+                            dialog.close();
+                            confirmDialog.close();
+                            Notification.show("Usuario eliminado y desasignado exitosamente");
+                        } catch (SecurityException ex) {
+                            Notification.show("Error: " + ex.getMessage(), 5000, Notification.Position.MIDDLE);
+                        }
+                    });
+                    confirmDeleteButton.getStyle().set("color", "red");
+
+                    Button cancelDeleteButton = new Button("Cancelar", event -> confirmDialog.close());
+
+                    confirmDialog.getFooter().add(cancelDeleteButton);
+                    confirmDialog.getFooter().add(confirmDeleteButton);
+                    confirmDialog.open();
+                } else {
+                    userService.delete(user.getId());
+                    updateList();
+                    dialog.close();
+                    Notification.show("Usuario eliminado exitosamente");
+                }
+            } catch (SecurityException ex) {
+                Notification.show("Error: " + ex.getMessage(), 5000, Notification.Position.MIDDLE);
+            }
+        });
+        deleteButton.getStyle().set("color", "red");
+
+        dialog.getFooter().add(closeButton);
+        dialog.getFooter().add(deleteButton);
+
+        dialog.open();
+
+        dialog.addOpenedChangeListener(e -> {
+            if (!e.isOpened()) {
+                grid.asSingleSelect().clear();
+            }
+        });
     }
 
     private void openCreateUserDialog() {

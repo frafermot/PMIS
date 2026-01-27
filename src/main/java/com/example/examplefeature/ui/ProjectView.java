@@ -1,5 +1,7 @@
 package com.example.examplefeature.ui;
 
+import java.util.List;
+
 import com.example.base.ui.MainLayout;
 
 import com.example.program.Program;
@@ -10,7 +12,7 @@ import com.example.user.User;
 import com.example.user.UserService;
 import com.example.user.Role;
 import com.vaadin.flow.component.button.Button;
-import com.vaadin.flow.component.combobox.ComboBox;
+import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.html.H2;
@@ -60,61 +62,118 @@ public class ProjectView extends VerticalLayout {
                 .setHeader("Programa");
         grid.addColumn(project -> project.getSponsor() != null ? project.getSponsor().getName() : "Sin Sponsor")
                 .setHeader("Sponsor");
+
+        grid.asSingleSelect().addValueChangeListener(event -> {
+            if (event.getValue() != null) {
+                openProjectDialog(event.getValue());
+            }
+        });
     }
 
     private HorizontalLayout createToolbar() {
         Button addProjectButton = new Button("Añadir Proyecto");
-        addProjectButton.addClickListener(e -> openCreateProjectDialog());
+        addProjectButton.addClickListener(e -> openProjectDialog(null));
 
         return new HorizontalLayout(addProjectButton);
     }
 
-    private void openCreateProjectDialog() {
+    private void openProjectDialog(Project project) {
         Dialog dialog = new Dialog();
-        dialog.setHeaderTitle("Nuevo Proyecto");
+        dialog.setHeaderTitle(project == null ? "Nuevo Proyecto" : "Editar Proyecto");
 
         TextField nameField = new TextField("Nombre");
 
-        ComboBox<User> directorComboBox = new ComboBox<>("Director");
-        directorComboBox.setItems(userService.getAll());
-        directorComboBox.setItemLabelGenerator(User::getName);
+        Select<User> directorSelect = new Select<>();
+        directorSelect.setLabel("Director");
+        directorSelect.setItems(userService.getAll());
+        directorSelect.setItemLabelGenerator(User::getName);
 
-        ComboBox<Program> programComboBox = new ComboBox<>("Programa");
-        programComboBox.setItems(programService.getAll());
-        programComboBox.setItemLabelGenerator(Program::getName);
+        Select<Program> programSelect = new Select<>();
+        programSelect.setLabel("Programa");
+        programSelect.setItems(programService.getAll());
+        programSelect.setItemLabelGenerator(Program::getName);
 
-        ComboBox<User> sponsorComboBox = new ComboBox<>("Sponsor");
-        sponsorComboBox.setItems(userService.findAllByRole(Role.MANAGER));
-        sponsorComboBox.setItemLabelGenerator(User::getName);
+        Select<User> sponsorSelect = new Select<>();
+        sponsorSelect.setLabel("Sponsor");
+        sponsorSelect.setItems(userService.findAllByRoles(List.of(Role.MANAGER, Role.ADMIN)));
+        sponsorSelect.setItemLabelGenerator(User::getName);
 
-        VerticalLayout dialogLayout = new VerticalLayout(nameField, directorComboBox, programComboBox, sponsorComboBox);
+        if (project != null) {
+            nameField.setValue(project.getName());
+            directorSelect.setValue(project.getDirector());
+            programSelect.setValue(project.getProgram());
+            sponsorSelect.setValue(project.getSponsor());
+        }
+
+        VerticalLayout dialogLayout = new VerticalLayout(nameField, directorSelect, programSelect, sponsorSelect);
         dialog.add(dialogLayout);
 
         Button saveButton = new Button("Guardar", e -> {
-            if (nameField.isEmpty() || directorComboBox.isEmpty() || programComboBox.isEmpty()
-                    || sponsorComboBox.isEmpty()) {
+            if (nameField.isEmpty() || directorSelect.isEmpty() || programSelect.isEmpty()
+                    || sponsorSelect.isEmpty()) {
                 Notification.show("Por favor rellene todos los campos");
                 return;
             }
 
-            Project newProject = new Project();
-            newProject.setName(nameField.getValue());
-            newProject.setDirector(directorComboBox.getValue());
-            newProject.setProgram(programComboBox.getValue());
-            newProject.setSponsor(sponsorComboBox.getValue());
+            Project projectToSave = project == null ? new Project() : project;
+            projectToSave.setName(nameField.getValue());
+            projectToSave.setDirector(directorSelect.getValue());
+            projectToSave.setProgram(programSelect.getValue());
+            projectToSave.setSponsor(sponsorSelect.getValue());
 
-            projectService.createOrUpdate(newProject);
+            projectService.createOrUpdate(projectToSave);
             updateList();
             dialog.close();
-            Notification.show("Proyecto creado exitosamente");
+            Notification.show("Proyecto guardado exitosamente");
         });
 
         Button cancelButton = new Button("Cancelar", e -> dialog.close());
 
+        Button deleteButton = new Button("Eliminar", e -> {
+            if (project != null) {
+                if (projectService.hasAssignedUsers(project.getId())) {
+                    Dialog confirmDialog = new Dialog();
+                    confirmDialog.setHeaderTitle("Eliminar Proyecto");
+                    confirmDialog.add(
+                            "Este proyecto tiene usuarios asignados. ¿Desea desasignar los usuarios y eliminar el proyecto?");
+
+                    Button confirmDeleteButton = new Button("Eliminar", event -> {
+                        projectService.deleteSafe(project.getId());
+                        updateList();
+                        dialog.close();
+                        confirmDialog.close();
+                        Notification.show("Proyecto eliminado exitosamente y usuarios desasignados");
+                    });
+                    confirmDeleteButton.getStyle().set("color", "red");
+
+                    Button cancelDeleteButton = new Button("Cancelar", event -> confirmDialog.close());
+
+                    confirmDialog.getFooter().add(cancelDeleteButton);
+                    confirmDialog.getFooter().add(confirmDeleteButton);
+                    confirmDialog.open();
+                } else {
+                    projectService.delete(project.getId());
+                    updateList();
+                    dialog.close();
+                    Notification.show("Proyecto eliminado exitosamente");
+                }
+            }
+        });
+        deleteButton.getStyle().set("color", "red");
+
         dialog.getFooter().add(cancelButton);
+        if (project != null) {
+            dialog.getFooter().add(deleteButton);
+        }
         dialog.getFooter().add(saveButton);
 
         dialog.open();
+
+        dialog.addOpenedChangeListener(e -> {
+            if (!e.isOpened()) {
+                grid.asSingleSelect().clear();
+            }
+        });
     }
 
     private void updateList() {

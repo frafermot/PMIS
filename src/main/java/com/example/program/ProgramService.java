@@ -1,5 +1,8 @@
 package com.example.program;
 
+import com.example.project.ProjectRepository;
+import com.example.user.UserRepository;
+
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -10,9 +13,14 @@ import org.springframework.transaction.annotation.Transactional;
 public class ProgramService {
 
     private final ProgramRepository programRepository;
+    private final ProjectRepository projectRepository;
+    private final UserRepository userRepository;
 
-    public ProgramService(ProgramRepository programRepository) {
+    public ProgramService(ProgramRepository programRepository, ProjectRepository projectRepository,
+            UserRepository userRepository) {
         this.programRepository = programRepository;
+        this.projectRepository = projectRepository;
+        this.userRepository = userRepository;
     }
 
     public Program createOrUpdate(Program program) {
@@ -30,5 +38,15 @@ public class ProgramService {
     public List<Program> getAll() {
         List<Program> programs = programRepository.findAllWithRelations();
         return programs;
+    }
+
+    public boolean hasProjects(Long id) {
+        return projectRepository.countByProgramId(id) > 0;
+    }
+
+    public void deleteWithCascade(Long id) {
+        userRepository.unassignUsersFromProjectsInProgram(id);
+        projectRepository.deleteByProgramId(id);
+        programRepository.deleteById(id);
     }
 }

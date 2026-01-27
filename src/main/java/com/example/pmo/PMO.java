@@ -26,8 +26,7 @@ public class PMO {
     private Portfolio portfolio;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "director_id", nullable = false)
-    @NotNull
+    @JoinColumn(name = "director_id")
     private User director;
 
     public Long getId() {
