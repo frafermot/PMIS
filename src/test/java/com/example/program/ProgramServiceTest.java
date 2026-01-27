@@ -2,10 +2,12 @@ package com.example.program;
 
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.user.User;
@@ -119,5 +121,114 @@ public class ProgramServiceTest {
                         allPrograms.contains(program1) &&
                         allPrograms.contains(program2) &&
                         allPrograms.equals(programService.getAll()));
+    }
+
+    // ===== SECURITY TESTS =====
+
+    @WithMockUser(username = "admin", roles = { "ADMIN" })
+    @Test
+    public void testCreateOrUpdateAsAdmin() {
+        var admin = new User();
+        admin.setName("Admin User");
+        admin.setUvus("admin");
+        admin.setRole(Role.ADMIN);
+        userService.createOrUpdate(admin);
+
+        var portfolio = new Portfolio();
+        portfolio.setName("Test Portfolio");
+        portfolio.setDirector(admin);
+        portfolioService.createOrUpdate(portfolio);
+
+        var program = new Program();
+        program.setName("Admin Program");
+        program.setPortfolio(portfolio);
+        program.setDirector(admin);
+
+        var createdProgram = programService.createOrUpdate(program);
+        assertNotNull(createdProgram);
+        assertTrue(createdProgram.getName().equals("Admin Program"));
+    }
+
+    @Test
+    public void testCreateOrUpdateAsManager() {
+        var manager = new User();
+        manager.setName("Manager User");
+        manager.setUvus("manager");
+        manager.setRole(Role.MANAGER);
+        userService.createOrUpdate(manager);
+
+        // Create portfolio without auth first
+        var portfolio = new Portfolio();
+        portfolio.setName("Test Portfolio");
+        portfolio.setDirector(manager);
+        var createdPortfolio = portfolioService.createOrUpdate(portfolio);
+
+        // Clear context to avoid portfolio validation
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+
+        // Now create with manager auth
+        org.springframework.security.core.context.SecurityContextHolder.getContext()
+                .setAuthentication(new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                        "manager", "password",
+                        java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                                "ROLE_MANAGER"))));
+
+        var program = new Program();
+        program.setName("Manager Program");
+        program.setPortfolio(createdPortfolio);
+        program.setDirector(manager);
+
+        var createdProgram = programService.createOrUpdate(program);
+        assertNotNull(createdProgram);
+        assertTrue(createdProgram.getName().equals("Manager Program"));
+
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+    }
+
+    @WithMockUser(username = "admin", roles = { "ADMIN" })
+    @Test
+    public void testDeleteAsAdmin() {
+        var admin = new User();
+        admin.setName("Admin User");
+        admin.setUvus("admin");
+        admin.setRole(Role.ADMIN);
+        userService.createOrUpdate(admin);
+
+        var portfolio = new Portfolio();
+        portfolio.setName("Test Portfolio");
+        portfolio.setDirector(admin);
+        portfolioService.createOrUpdate(portfolio);
+
+        var program = new Program();
+        program.setName("Program to Delete");
+        program.setPortfolio(portfolio);
+        program.setDirector(admin);
+        var createdProgram = programService.createOrUpdate(program);
+
+        programService.delete(createdProgram.getId());
+        assertNull(programService.get(createdProgram.getId()));
+    }
+
+    @Test
+    public void testDeleteAsManager() {
+        var manager = new User();
+        manager.setName("Manager User");
+        manager.setUvus("manager");
+        manager.setRole(Role.MANAGER);
+        userService.createOrUpdate(manager);
+
+        var portfolio = new Portfolio();
+        portfolio.setName("Test Portfolio");
+        portfolio.setDirector(manager);
+        var createdPortfolio = portfolioService.createOrUpdate(portfolio);
+
+        var program = new Program();
+        program.setName("Program to Delete");
+        program.setPortfolio(createdPortfolio);
+        program.setDirector(manager);
+        var createdProgram = programService.createOrUpdate(program);
+
+        programService.delete(createdProgram.getId());
+        assertNull(programService.get(createdProgram.getId()));
     }
 }
