@@ -35,4 +35,8 @@ public class UserService {
     public List<User> findAllByRole(Role role) {
         return userRepository.findAllByRole(role);
     }
+
+    public User findByUvus(String uvus) {
+        return userRepository.findByUvus(uvus);
+    }
 }

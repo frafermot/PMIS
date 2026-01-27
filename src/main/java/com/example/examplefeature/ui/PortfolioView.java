@@ -24,7 +24,6 @@ import com.vaadin.flow.router.RouteAlias;
 import jakarta.annotation.security.RolesAllowed;
 
 @Route(value = "portfolios", layout = MainLayout.class)
-@RouteAlias(value = "", layout = MainLayout.class)
 @PageTitle("Portafolios")
 @Menu(order = 1, icon = "vaadin:briefcase", title = "Portafolios")
 @RolesAllowed({ "ADMIN", "MANAGER" })

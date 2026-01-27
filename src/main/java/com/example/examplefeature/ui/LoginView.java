@@ -16,7 +16,11 @@ public class LoginView extends VerticalLayout implements BeforeEnterObserver {
 
     private final LoginForm login = new LoginForm();
 
-    public LoginView() {
+    private final com.vaadin.flow.spring.security.AuthenticationContext authContext;
+
+    public LoginView(com.vaadin.flow.spring.security.AuthenticationContext authContext) {
+        this.authContext = authContext;
+
         addClassName("login-view");
         setSizeFull();
         setAlignItems(Alignment.CENTER);
@@ -29,6 +33,11 @@ public class LoginView extends VerticalLayout implements BeforeEnterObserver {
 
     @Override
     public void beforeEnter(BeforeEnterEvent beforeEnterEvent) {
+        if (authContext.isAuthenticated()) {
+            beforeEnterEvent.forwardTo("");
+            return;
+        }
+
         // inform the user about an authentication error
         if (beforeEnterEvent.getLocation()
                 .getQueryParameters()
