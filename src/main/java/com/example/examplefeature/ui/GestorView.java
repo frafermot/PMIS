@@ -5,6 +5,7 @@ import com.example.user.Role;
 import com.example.user.User;
 import com.example.user.UserService;
 import com.example.security.PasswordGenerator;
+import com.example.service.EmailService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.checkbox.Checkbox;
@@ -32,11 +33,14 @@ public class GestorView extends VerticalLayout {
 
     private final PasswordEncoder passwordEncoder;
     private final PasswordGenerator passwordGenerator;
+    private final EmailService emailService;
 
-    public GestorView(UserService userService, PasswordEncoder passwordEncoder, PasswordGenerator passwordGenerator) {
+    public GestorView(UserService userService, PasswordEncoder passwordEncoder, PasswordGenerator passwordGenerator,
+            EmailService emailService) {
         this.userService = userService;
         this.passwordEncoder = passwordEncoder;
         this.passwordGenerator = passwordGenerator;
+        this.emailService = emailService;
 
         setSizeFull();
         configureGrid();
@@ -92,6 +96,8 @@ public class GestorView extends VerticalLayout {
 
             Notification notification = Notification.show("Gestor creado. Contraseña: " + generatedPassword);
             notification.setDuration(10000); // 10 seconds to read/copy
+
+            emailService.sendCredentials(newManager.getUvus() + "@us.es", newManager.getUvus(), generatedPassword);
         });
 
         Button cancelButton = new Button("Cancelar", e -> dialog.close());

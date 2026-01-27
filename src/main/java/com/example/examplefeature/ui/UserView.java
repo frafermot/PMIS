@@ -5,6 +5,7 @@ import com.example.user.User;
 import com.example.user.UserService;
 import com.example.user.Role;
 import com.example.security.PasswordGenerator;
+import com.example.service.EmailService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.dialog.Dialog;
@@ -31,11 +32,14 @@ public class UserView extends VerticalLayout {
 
     private final PasswordEncoder passwordEncoder;
     private final PasswordGenerator passwordGenerator;
+    private final EmailService emailService;
 
-    public UserView(UserService userService, PasswordEncoder passwordEncoder, PasswordGenerator passwordGenerator) {
+    public UserView(UserService userService, PasswordEncoder passwordEncoder, PasswordGenerator passwordGenerator,
+            EmailService emailService) {
         this.userService = userService;
         this.passwordEncoder = passwordEncoder;
         this.passwordGenerator = passwordGenerator;
+        this.emailService = emailService;
 
         setSizeFull();
         configureGrid();
@@ -91,6 +95,8 @@ public class UserView extends VerticalLayout {
 
             Notification notification = Notification.show("Usuario creado. Contraseña: " + generatedPassword);
             notification.setDuration(10000);
+
+            emailService.sendCredentials(newUser.getUvus() + "@alum.us.es", newUser.getUvus(), generatedPassword);
         });
 
         Button cancelButton = new Button("Cancelar", e -> dialog.close());
