@@ -1,8 +1,9 @@
 package com.example.examplefeature.ui;
 
 import com.example.base.ui.MainLayout;
-import com.example.manager.Manager;
-import com.example.manager.ManagerService;
+import com.example.user.User;
+import com.example.user.UserService;
+import com.example.user.Role;
 import com.example.portfolio.Portfolio;
 import com.example.portfolio.PortfolioService;
 import com.example.pmo.PMO;
@@ -27,13 +28,13 @@ public class PmoView extends VerticalLayout {
 
     private final PMOService pmoService;
     private final PortfolioService portfolioService;
-    private final ManagerService managerService;
+    private final UserService userService;
     private final Grid<PMO> grid = new Grid<>(PMO.class);
 
-    public PmoView(PMOService pmoService, PortfolioService portfolioService, ManagerService managerService) {
+    public PmoView(PMOService pmoService, PortfolioService portfolioService, UserService userService) {
         this.pmoService = pmoService;
         this.portfolioService = portfolioService;
-        this.managerService = managerService;
+        this.userService = userService;
 
         setSizeFull();
         configureGrid();
@@ -70,9 +71,9 @@ public class PmoView extends VerticalLayout {
         portfolioComboBox.setItems(portfolioService.getAll());
         portfolioComboBox.setItemLabelGenerator(Portfolio::getName);
 
-        ComboBox<Manager> directorComboBox = new ComboBox<>("Director");
-        directorComboBox.setItems(managerService.getAll());
-        directorComboBox.setItemLabelGenerator(Manager::getName);
+        ComboBox<User> directorComboBox = new ComboBox<>("Director");
+        directorComboBox.setItems(userService.findAllByRole(Role.MANAGER));
+        directorComboBox.setItemLabelGenerator(User::getName);
 
         VerticalLayout dialogLayout = new VerticalLayout(nameField, portfolioComboBox, directorComboBox);
         dialog.add(dialogLayout);

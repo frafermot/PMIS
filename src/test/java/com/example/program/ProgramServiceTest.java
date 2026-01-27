@@ -8,29 +8,30 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.example.manager.Manager;
-import com.example.manager.ManagerService;
+import com.example.user.User;
+import com.example.user.UserService;
+import com.example.user.Role;
 import com.example.portfolio.Portfolio;
 import com.example.portfolio.PortfolioService;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @Transactional
 public class ProgramServiceTest {
-    
+
     @Autowired
     ProgramService programService;
     @Autowired
     PortfolioService portfolioService;
     @Autowired
-    ManagerService managerService;
+    UserService userService;
 
     @Test
     public void testCreateOrUpdate() {
-        var manager = new Manager();
+        var manager = new User();
         manager.setName("Director Name");
         manager.setUvus("director_uvus");
-        manager.setIsAdmin(true);
-        managerService.createOrUpdate(manager);
+        manager.setRole(Role.MANAGER);
+        userService.createOrUpdate(manager);
         var portfolio = new Portfolio();
         portfolio.setName("Portfolio Name");
         portfolio.setDirector(manager);
@@ -42,18 +43,18 @@ public class ProgramServiceTest {
         program.setDirector(manager);
         var createdProgram = programService.createOrUpdate(program);
         assertTrue(
-            createdProgram.getName().equals(name) &&
-            createdProgram.getPortfolio().equals(portfolio) &&
-            createdProgram.getDirector().equals(manager));
+                createdProgram.getName().equals(name) &&
+                        createdProgram.getPortfolio().equals(portfolio) &&
+                        createdProgram.getDirector().equals(manager));
     }
 
     @Test
     public void testGet() {
-        var manager = new Manager();
+        var manager = new User();
         manager.setName("Director Name");
         manager.setUvus("director_uvus");
-        manager.setIsAdmin(true);
-        managerService.createOrUpdate(manager);
+        manager.setRole(Role.MANAGER);
+        userService.createOrUpdate(manager);
         var portfolio = new Portfolio();
         portfolio.setName("Portfolio Name");
         portfolio.setDirector(manager);
@@ -66,16 +67,16 @@ public class ProgramServiceTest {
         var createdProgram = programService.createOrUpdate(program);
         var fetchedProgram = programService.get(createdProgram.getId());
         assertTrue(
-            createdProgram.equals(fetchedProgram));
+                createdProgram.equals(fetchedProgram));
     }
 
     @Test
     public void testDelete() {
-        var manager = new Manager();
+        var manager = new User();
         manager.setName("Director Name");
         manager.setUvus("director_uvus");
-        manager.setIsAdmin(true);
-        managerService.createOrUpdate(manager);
+        manager.setRole(Role.MANAGER);
+        userService.createOrUpdate(manager);
         var portfolio = new Portfolio();
         portfolio.setName("Portfolio Name");
         portfolio.setDirector(manager);
@@ -93,11 +94,11 @@ public class ProgramServiceTest {
 
     @Test
     public void testGetAll() {
-        var manager = new Manager();
+        var manager = new User();
         manager.setName("Director Name");
         manager.setUvus("director_uvus");
-        manager.setIsAdmin(true);
-        managerService.createOrUpdate(manager);
+        manager.setRole(Role.MANAGER);
+        userService.createOrUpdate(manager);
         var portfolio = new Portfolio();
         portfolio.setName("Portfolio Name");
         portfolio.setDirector(manager);
@@ -114,9 +115,9 @@ public class ProgramServiceTest {
         programService.createOrUpdate(program2);
         var allPrograms = programService.getAll();
         assertTrue(
-            !allPrograms.isEmpty() &&
-            allPrograms.contains(program1) &&
-            allPrograms.contains(program2) &&
-            allPrograms.equals(programService.getAll()));
+                !allPrograms.isEmpty() &&
+                        allPrograms.contains(program1) &&
+                        allPrograms.contains(program2) &&
+                        allPrograms.equals(programService.getAll()));
     }
 }

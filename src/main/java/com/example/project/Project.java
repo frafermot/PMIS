@@ -1,8 +1,7 @@
 package com.example.project;
 
-import com.example.manager.Manager;
-import com.example.program.Program;
 import com.example.user.User;
+import com.example.program.Program;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
@@ -10,7 +9,7 @@ import jakarta.validation.constraints.*;
 @Entity
 @Table(name = "project")
 public class Project {
-    
+
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE)
     @Column(name = "project_id", nullable = false)
@@ -34,7 +33,7 @@ public class Project {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sponsor_id", nullable = false)
     @NotNull
-    private Manager sponsor;
+    private User sponsor;
 
     public Long getId() {
         return id;
@@ -68,11 +67,11 @@ public class Project {
         this.program = program;
     }
 
-    public Manager getSponsor() {
+    public User getSponsor() {
         return sponsor;
     }
 
-    public void setSponsor(Manager sponsor) {
+    public void setSponsor(User sponsor) {
         this.sponsor = sponsor;
     }
 }

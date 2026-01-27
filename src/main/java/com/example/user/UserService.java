@@ -31,4 +31,8 @@ public class UserService {
         List<User> users = userRepository.findAllWithProject();
         return users;
     }
+
+    public List<User> findAllByRole(Role role) {
+        return userRepository.findAllByRole(role);
+    }
 }

@@ -1,8 +1,10 @@
 package com.example.examplefeature.ui;
 
 import com.example.base.ui.MainLayout;
-import com.example.manager.Manager;
-import com.example.manager.ManagerService;
+
+import com.example.user.User;
+import com.example.user.UserService;
+import com.example.user.Role;
 import com.example.portfolio.Portfolio;
 import com.example.portfolio.PortfolioService;
 import com.example.program.Program;
@@ -20,21 +22,24 @@ import com.vaadin.flow.router.Menu;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 
+import jakarta.annotation.security.RolesAllowed;
+
 @Route(value = "programas", layout = MainLayout.class)
 @PageTitle("Programas")
 @Menu(order = 4, icon = "vaadin:archives", title = "Programas")
+@RolesAllowed({ "ADMIN", "MANAGER" })
 public class ProgramView extends VerticalLayout {
 
     private final ProgramService programService;
     private final PortfolioService portfolioService;
-    private final ManagerService managerService;
+    private final UserService userService;
     private final Grid<Program> grid = new Grid<>(Program.class);
 
     public ProgramView(ProgramService programService, PortfolioService portfolioService,
-            ManagerService managerService) {
+            UserService userService) {
         this.programService = programService;
         this.portfolioService = portfolioService;
-        this.managerService = managerService;
+        this.userService = userService;
 
         setSizeFull();
         configureGrid();
@@ -71,9 +76,9 @@ public class ProgramView extends VerticalLayout {
         portfolioComboBox.setItems(portfolioService.getAll());
         portfolioComboBox.setItemLabelGenerator(Portfolio::getName);
 
-        ComboBox<Manager> directorComboBox = new ComboBox<>("Director");
-        directorComboBox.setItems(managerService.getAll());
-        directorComboBox.setItemLabelGenerator(Manager::getName);
+        ComboBox<User> directorComboBox = new ComboBox<>("Director");
+        directorComboBox.setItems(userService.findAllByRole(Role.MANAGER));
+        directorComboBox.setItemLabelGenerator(User::getName);
 
         VerticalLayout dialogLayout = new VerticalLayout(nameField, portfolioComboBox, directorComboBox);
         dialog.add(dialogLayout);

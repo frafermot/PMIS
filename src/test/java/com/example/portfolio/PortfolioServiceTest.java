@@ -8,42 +8,43 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.example.manager.Manager;
-import com.example.manager.ManagerService;
+import com.example.user.User;
+import com.example.user.UserService;
+import com.example.user.Role;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @Transactional
 class PortfolioServiceTest {
-    
+
     @Autowired
     PortfolioService portfolioService;
     @Autowired
-    ManagerService managerService;
+    UserService userService;
 
     @Test
     public void testCreateOrUpdate() {
-        var manager = new Manager();
+        var manager = new User();
         manager.setName("Director Name");
         manager.setUvus("director_uvus");
-        manager.setIsAdmin(true);
-        managerService.createOrUpdate(manager);
+        manager.setRole(Role.MANAGER);
+        userService.createOrUpdate(manager);
         var name = "Portfolio Name";
         var portfolio = new Portfolio();
         portfolio.setName(name);
         portfolio.setDirector(manager);
         var createdPortfolio = portfolioService.createOrUpdate(portfolio);
         assertTrue(
-            createdPortfolio.getName().equals(name) &&
-            createdPortfolio.getDirector().equals(manager));
+                createdPortfolio.getName().equals(name) &&
+                        createdPortfolio.getDirector().equals(manager));
     }
 
     @Test
     public void testGet() {
-        var manager = new Manager();
+        var manager = new User();
         manager.setName("Director Name");
         manager.setUvus("director_uvus");
-        manager.setIsAdmin(true);
-        managerService.createOrUpdate(manager);
+        manager.setRole(Role.MANAGER);
+        userService.createOrUpdate(manager);
         var name = "Portfolio Name";
         var portfolio = new Portfolio();
         portfolio.setName(name);
@@ -51,16 +52,16 @@ class PortfolioServiceTest {
         var createdPortfolio = portfolioService.createOrUpdate(portfolio);
         var fetchedPortfolio = portfolioService.get(createdPortfolio.getId());
         assertTrue(
-            createdPortfolio.equals(fetchedPortfolio));
+                createdPortfolio.equals(fetchedPortfolio));
     }
 
     @Test
     public void testDelete() {
-        var manager = new Manager();
+        var manager = new User();
         manager.setName("Director Name");
         manager.setUvus("director_uvus");
-        manager.setIsAdmin(true);
-        managerService.createOrUpdate(manager);
+        manager.setRole(Role.MANAGER);
+        userService.createOrUpdate(manager);
         var name = "Portfolio Name";
         var portfolio = new Portfolio();
         portfolio.setName(name);
@@ -73,11 +74,11 @@ class PortfolioServiceTest {
 
     @Test
     public void testGetAll() {
-        var manager = new Manager();
+        var manager = new User();
         manager.setName("Director Name");
         manager.setUvus("director_uvus");
-        manager.setIsAdmin(true);
-        managerService.createOrUpdate(manager);
+        manager.setRole(Role.MANAGER);
+        userService.createOrUpdate(manager);
         var portfolio1 = new Portfolio();
         portfolio1.setName("Portfolio Name 1");
         portfolio1.setDirector(manager);
@@ -88,10 +89,10 @@ class PortfolioServiceTest {
         var pmo2 = portfolioService.createOrUpdate(portfolio2);
         var allPMOs = portfolioService.getAll();
         assertTrue(
-            allPMOs != null &&
-             !allPMOs.isEmpty() &&
-             allPMOs.contains(pmo1) &&
-             allPMOs.contains(pmo2) &&
-             allPMOs.equals(portfolioService.getAll()));
+                allPMOs != null &&
+                        !allPMOs.isEmpty() &&
+                        allPMOs.contains(pmo1) &&
+                        allPMOs.contains(pmo2) &&
+                        allPMOs.equals(portfolioService.getAll()));
     }
 }

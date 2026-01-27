@@ -15,9 +15,12 @@ import com.vaadin.flow.router.Menu;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 
+import jakarta.annotation.security.RolesAllowed;
+
 @Route(value = "usuarios", layout = MainLayout.class)
 @PageTitle("Usuarios")
 @Menu(order = 4, icon = "vaadin:users", title = "Usuarios")
+@RolesAllowed({ "ADMIN", "MANAGER" })
 public class UserView extends VerticalLayout {
 
     private final UserService userService;
