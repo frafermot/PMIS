@@ -1,8 +1,11 @@
 package com.example.examplefeature.ui;
 
 import com.example.base.ui.MainLayout;
-import com.example.manager.Manager;
-import com.example.manager.ManagerService;
+import com.example.user.Role;
+import com.example.user.User;
+import com.example.user.UserService;
+import com.example.security.PasswordGenerator;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.dialog.Dialog;
@@ -16,16 +19,24 @@ import com.vaadin.flow.router.Menu;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 
+import jakarta.annotation.security.RolesAllowed;
+
 @Route(value = "gestores", layout = MainLayout.class)
 @PageTitle("Registro de Gestores")
 @Menu(order = 0, icon = "vaadin:users", title = "Registro de Gestores")
+@RolesAllowed("ADMIN")
 public class GestorView extends VerticalLayout {
 
-    private final ManagerService managerService;
-    private final Grid<Manager> grid = new Grid<>(Manager.class);
+    private final UserService userService;
+    private final Grid<User> grid = new Grid<>(User.class);
 
-    public GestorView(ManagerService managerService) {
-        this.managerService = managerService;
+    private final PasswordEncoder passwordEncoder;
+    private final PasswordGenerator passwordGenerator;
+
+    public GestorView(UserService userService, PasswordEncoder passwordEncoder, PasswordGenerator passwordGenerator) {
+        this.userService = userService;
+        this.passwordEncoder = passwordEncoder;
+        this.passwordGenerator = passwordGenerator;
 
         setSizeFull();
         configureGrid();
@@ -37,10 +48,10 @@ public class GestorView extends VerticalLayout {
     private void configureGrid() {
         grid.setSizeFull();
         grid.removeAllColumns();
-        grid.addColumn(Manager::getId).setHeader("ID");
-        grid.addColumn(Manager::getName).setHeader("Nombre");
-        grid.addColumn(Manager::getUvus).setHeader("UVUS");
-        grid.addColumn(manager -> manager.getIsAdmin() ? "Sí" : "No").setHeader("Es Admin");
+        grid.addColumn(User::getId).setHeader("ID");
+        grid.addColumn(User::getName).setHeader("Nombre");
+        grid.addColumn(User::getUvus).setHeader("UVUS");
+        grid.addColumn(user -> user.getRole() == Role.ADMIN ? "Sí" : "No").setHeader("Es Admin");
     }
 
     private HorizontalLayout createToolbar() {
@@ -67,15 +78,20 @@ public class GestorView extends VerticalLayout {
                 return;
             }
 
-            Manager newManager = new Manager();
+            User newManager = new User();
             newManager.setName(nameField.getValue());
             newManager.setUvus(uvusField.getValue());
-            newManager.setIsAdmin(isAdminCheckbox.getValue());
+            newManager.setRole(Boolean.TRUE.equals(isAdminCheckbox.getValue()) ? Role.ADMIN : Role.MANAGER);
 
-            managerService.createOrUpdate(newManager);
+            String generatedPassword = passwordGenerator.generateStrongPassword();
+            newManager.setPassword(passwordEncoder.encode(generatedPassword));
+
+            userService.createOrUpdate(newManager);
             updateList();
             dialog.close();
-            Notification.show("Gestor creado exitosamente");
+
+            Notification notification = Notification.show("Gestor creado. Contraseña: " + generatedPassword);
+            notification.setDuration(10000); // 10 seconds to read/copy
         });
 
         Button cancelButton = new Button("Cancelar", e -> dialog.close());
@@ -87,6 +103,18 @@ public class GestorView extends VerticalLayout {
     }
 
     private void updateList() {
-        grid.setItems(managerService.getAll());
+        // Show both Managers and Admins, or just Managers?
+        // "Gestor" usually implies Manager role. Admin implies Admin role.
+        // I will show both for now since the view allows creating Admins.
+        // Or I can filter. Let's show all for now or filter by Role IN (ADMIN,
+        // MANAGER).
+        // Since findAllByRole takes one role, I might need to fetch all and filter or
+        // add a method.
+        // For simplicity and to match previous behavior (which likely showed all
+        // 'Manager' entities including admins),
+        // I will show Users who are NOT Role.USER (i.e. Managers and Admins).
+        grid.setItems(userService.getAll().stream()
+                .filter(u -> u.getRole() == Role.MANAGER || u.getRole() == Role.ADMIN)
+                .toList());
     }
 }

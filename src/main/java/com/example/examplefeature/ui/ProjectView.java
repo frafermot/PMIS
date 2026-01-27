@@ -1,14 +1,14 @@
 package com.example.examplefeature.ui;
 
 import com.example.base.ui.MainLayout;
-import com.example.manager.Manager;
-import com.example.manager.ManagerService;
+
 import com.example.program.Program;
 import com.example.program.ProgramService;
 import com.example.project.Project;
 import com.example.project.ProjectService;
 import com.example.user.User;
 import com.example.user.UserService;
+import com.example.user.Role;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.dialog.Dialog;
@@ -22,23 +22,25 @@ import com.vaadin.flow.router.Menu;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 
+import jakarta.annotation.security.RolesAllowed;
+
 @Route(value = "proyectos", layout = MainLayout.class)
 @PageTitle("Proyectos")
 @Menu(order = 5, icon = "vaadin:archive", title = "Proyectos")
+@RolesAllowed({ "ADMIN", "MANAGER" })
 public class ProjectView extends VerticalLayout {
 
     private final ProjectService projectService;
     private final UserService userService;
     private final ProgramService programService;
-    private final ManagerService managerService;
+
     private final Grid<Project> grid = new Grid<>(Project.class);
 
     public ProjectView(ProjectService projectService, UserService userService,
-            ProgramService programService, ManagerService managerService) {
+            ProgramService programService) {
         this.projectService = projectService;
         this.userService = userService;
         this.programService = programService;
-        this.managerService = managerService;
 
         setSizeFull();
         configureGrid();
@@ -81,9 +83,9 @@ public class ProjectView extends VerticalLayout {
         programComboBox.setItems(programService.getAll());
         programComboBox.setItemLabelGenerator(Program::getName);
 
-        ComboBox<Manager> sponsorComboBox = new ComboBox<>("Sponsor");
-        sponsorComboBox.setItems(managerService.getAll());
-        sponsorComboBox.setItemLabelGenerator(Manager::getName);
+        ComboBox<User> sponsorComboBox = new ComboBox<>("Sponsor");
+        sponsorComboBox.setItems(userService.findAllByRole(Role.MANAGER));
+        sponsorComboBox.setItemLabelGenerator(User::getName);
 
         VerticalLayout dialogLayout = new VerticalLayout(nameField, directorComboBox, programComboBox, sponsorComboBox);
         dialog.add(dialogLayout);

@@ -8,29 +8,30 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.example.manager.Manager;
-import com.example.manager.ManagerService;
+import com.example.user.User;
+import com.example.user.UserService;
+import com.example.user.Role;
 import com.example.portfolio.Portfolio;
 import com.example.portfolio.PortfolioService;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @Transactional
 class PMOServiceTest {
-    
+
     @Autowired
     PMOService pmoService;
     @Autowired
-    ManagerService managerService;
+    UserService userService;
     @Autowired
     PortfolioService portfolioService;
 
     @Test
     public void testCreateOrUpdate() {
-        var manager = new Manager();
+        var manager = new User();
         manager.setName("Director Name");
         manager.setUvus("director_uvus");
-        manager.setIsAdmin(true);
-        managerService.createOrUpdate(manager);
+        manager.setRole(Role.MANAGER);
+        userService.createOrUpdate(manager);
         var portfolio = new Portfolio();
         portfolio.setName("Portfolio Name");
         portfolio.setDirector(manager);
@@ -42,18 +43,18 @@ class PMOServiceTest {
         pmo.setDirector(manager);
         var createdPMO = pmoService.createOrUpdate(pmo);
         assertTrue(
-            createdPMO.getName().equals(name) &&
-            createdPMO.getPortfolio().equals(portfolio) &&
-            createdPMO.getDirector().equals(manager));
+                createdPMO.getName().equals(name) &&
+                        createdPMO.getPortfolio().equals(portfolio) &&
+                        createdPMO.getDirector().equals(manager));
     }
 
     @Test
     public void testGet() {
-        var manager = new Manager();
+        var manager = new User();
         manager.setName("Director Name");
         manager.setUvus("director_uvus");
-        manager.setIsAdmin(true);
-        managerService.createOrUpdate(manager);
+        manager.setRole(Role.MANAGER);
+        userService.createOrUpdate(manager);
         var portfolio = new Portfolio();
         portfolio.setName("Portfolio Name");
         portfolio.setDirector(manager);
@@ -66,16 +67,16 @@ class PMOServiceTest {
         var createdPMO = pmoService.createOrUpdate(pmo);
         var fetchedPMO = pmoService.get(createdPMO.getId());
         assertTrue(
-            createdPMO.equals(fetchedPMO));
+                createdPMO.equals(fetchedPMO));
     }
 
     @Test
     public void testDelete() {
-        var manager = new Manager();
+        var manager = new User();
         manager.setName("Director Name");
         manager.setUvus("director_uvus");
-        manager.setIsAdmin(true);
-        managerService.createOrUpdate(manager);
+        manager.setRole(Role.MANAGER);
+        userService.createOrUpdate(manager);
         var portfolio = new Portfolio();
         portfolio.setName("Portfolio Name");
         portfolio.setDirector(manager);
@@ -93,11 +94,11 @@ class PMOServiceTest {
 
     @Test
     public void testGetAll() {
-        var manager = new Manager();
+        var manager = new User();
         manager.setName("Director Name");
         manager.setUvus("director_uvus");
-        manager.setIsAdmin(true);
-        managerService.createOrUpdate(manager);
+        manager.setRole(Role.MANAGER);
+        userService.createOrUpdate(manager);
         var portfolio = new Portfolio();
         portfolio.setName("Portfolio Name");
         portfolio.setDirector(manager);
@@ -114,9 +115,9 @@ class PMOServiceTest {
         pmoService.createOrUpdate(pmo2);
         var allPMOs = pmoService.getAll();
         assertTrue(
-            !allPMOs.isEmpty() &&
-            allPMOs.contains(pmo1) &&
-            allPMOs.contains(pmo2) &&
-            allPMOs.equals(pmoService.getAll()));
+                !allPMOs.isEmpty() &&
+                        allPMOs.contains(pmo1) &&
+                        allPMOs.contains(pmo2) &&
+                        allPMOs.equals(pmoService.getAll()));
     }
 }

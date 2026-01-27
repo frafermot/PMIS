@@ -8,37 +8,35 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.example.manager.Manager;
-import com.example.manager.ManagerService;
-import com.example.portfolio.Portfolio;
-import com.example.portfolio.PortfolioService;
-import com.example.program.Program;
-import com.example.program.ProgramService;
 import com.example.user.User;
 import com.example.user.UserService;
+import com.example.user.Role;
+import com.example.program.Program;
+import com.example.program.ProgramService;
+import com.example.portfolio.Portfolio;
+import com.example.portfolio.PortfolioService;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @Transactional
 class ProjectServiceTest {
-    
+
     @Autowired
     ProjectService projectService;
     @Autowired
     ProgramService programService;
     @Autowired
     PortfolioService portfolioService;
-    @Autowired
-    ManagerService managerService;
+
     @Autowired
     UserService userService;
 
     @Test
     public void testCreateOrUpdate() {
-        var manager = new Manager();
+        var manager = new User();
         manager.setName("Director Name");
         manager.setUvus("director_uvus");
-        manager.setIsAdmin(true);
-        managerService.createOrUpdate(manager);
+        manager.setRole(Role.MANAGER);
+        userService.createOrUpdate(manager);
         var portfolio = new Portfolio();
         portfolio.setName("Portfolio Name");
         portfolio.setDirector(manager);
@@ -60,19 +58,19 @@ class ProjectServiceTest {
         project.setDirector(director);
         var createdProject = projectService.createOrUpdate(project);
         assertTrue(
-            createdProject.getName().equals(name) &&
-            createdProject.getProgram().equals(program) &&
-            createdProject.getSponsor().equals(manager) &&
-            createdProject.getDirector().equals(director));
+                createdProject.getName().equals(name) &&
+                        createdProject.getProgram().equals(program) &&
+                        createdProject.getSponsor().equals(manager) &&
+                        createdProject.getDirector().equals(director));
     }
 
     @Test
     public void testGet() {
-        var manager = new Manager();
+        var manager = new User();
         manager.setName("Director Name");
         manager.setUvus("director_uvus");
-        manager.setIsAdmin(true);
-        managerService.createOrUpdate(manager);
+        manager.setRole(Role.MANAGER);
+        userService.createOrUpdate(manager);
         var portfolio = new Portfolio();
         portfolio.setName("Portfolio Name");
         portfolio.setDirector(manager);
@@ -95,16 +93,16 @@ class ProjectServiceTest {
         var createdProject = projectService.createOrUpdate(project);
         var fetchedProject = projectService.get(createdProject.getId());
         assertTrue(
-            createdProject.equals(fetchedProject));
+                createdProject.equals(fetchedProject));
     }
 
     @Test
     public void testDelete() {
-        var manager = new Manager();
+        var manager = new User();
         manager.setName("Director Name");
         manager.setUvus("director_uvus");
-        manager.setIsAdmin(true);
-        managerService.createOrUpdate(manager);
+        manager.setRole(Role.MANAGER);
+        userService.createOrUpdate(manager);
         var portfolio = new Portfolio();
         portfolio.setName("Portfolio Name");
         portfolio.setDirector(manager);
@@ -132,11 +130,11 @@ class ProjectServiceTest {
 
     @Test
     public void testGetAll() {
-        var manager = new Manager();
+        var manager = new User();
         manager.setName("Director Name");
         manager.setUvus("director_uvus");
-        manager.setIsAdmin(true);
-        managerService.createOrUpdate(manager);
+        manager.setRole(Role.MANAGER);
+        userService.createOrUpdate(manager);
         var portfolio = new Portfolio();
         portfolio.setName("Portfolio Name");
         portfolio.setDirector(manager);
@@ -168,9 +166,9 @@ class ProjectServiceTest {
         var p2 = projectService.createOrUpdate(project2);
         var allProjects = projectService.getAll();
         assertTrue(
-            !allProjects.isEmpty() &&
-            allProjects.contains(p1) &&
-            allProjects.contains(p2) &&
-            allProjects.equals(projectService.getAll()));
+                !allProjects.isEmpty() &&
+                        allProjects.contains(p1) &&
+                        allProjects.contains(p2) &&
+                        allProjects.equals(projectService.getAll()));
     }
 }

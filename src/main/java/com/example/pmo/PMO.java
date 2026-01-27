@@ -1,6 +1,6 @@
 package com.example.pmo;
 
-import com.example.manager.Manager;
+import com.example.user.User;
 import com.example.portfolio.Portfolio;
 
 import jakarta.persistence.*;
@@ -9,7 +9,7 @@ import jakarta.validation.constraints.*;
 @Entity
 @Table(name = "pmo")
 public class PMO {
-    
+
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE)
     @Column(name = "pmo_id", nullable = false)
@@ -28,7 +28,7 @@ public class PMO {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "director_id", nullable = false)
     @NotNull
-    private Manager director;
+    private User director;
 
     public Long getId() {
         return id;
@@ -54,11 +54,11 @@ public class PMO {
         this.portfolio = portfolio;
     }
 
-    public Manager getDirector() {
+    public User getDirector() {
         return director;
     }
 
-    public void setDirector(Manager director) {
+    public void setDirector(User director) {
         this.director = director;
     }
 }
