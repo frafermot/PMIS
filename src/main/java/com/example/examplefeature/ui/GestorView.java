@@ -4,6 +4,8 @@ import com.example.base.ui.MainLayout;
 import com.example.user.Role;
 import com.example.user.User;
 import com.example.user.UserService;
+import com.example.security.PasswordGenerator;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.dialog.Dialog;
@@ -28,8 +30,13 @@ public class GestorView extends VerticalLayout {
     private final UserService userService;
     private final Grid<User> grid = new Grid<>(User.class);
 
-    public GestorView(UserService userService) {
+    private final PasswordEncoder passwordEncoder;
+    private final PasswordGenerator passwordGenerator;
+
+    public GestorView(UserService userService, PasswordEncoder passwordEncoder, PasswordGenerator passwordGenerator) {
         this.userService = userService;
+        this.passwordEncoder = passwordEncoder;
+        this.passwordGenerator = passwordGenerator;
 
         setSizeFull();
         configureGrid();
@@ -75,16 +82,16 @@ public class GestorView extends VerticalLayout {
             newManager.setName(nameField.getValue());
             newManager.setUvus(uvusField.getValue());
             newManager.setRole(Boolean.TRUE.equals(isAdminCheckbox.getValue()) ? Role.ADMIN : Role.MANAGER);
-            // Set a default password for created managers/admins if needed, or leave null
-            // to be set later.
-            // For now, I'll set a default password equal to uvus as per pattern or
-            // "password"
-            newManager.setPassword("$2a$10$xWwWv/p.u.k.2.k.1.1.1.e"); // Placeholder hash or handle password logic
+
+            String generatedPassword = passwordGenerator.generateStrongPassword();
+            newManager.setPassword(passwordEncoder.encode(generatedPassword));
 
             userService.createOrUpdate(newManager);
             updateList();
             dialog.close();
-            Notification.show("Gestor creado exitosamente");
+
+            Notification notification = Notification.show("Gestor creado. Contraseña: " + generatedPassword);
+            notification.setDuration(10000); // 10 seconds to read/copy
         });
 
         Button cancelButton = new Button("Cancelar", e -> dialog.close());

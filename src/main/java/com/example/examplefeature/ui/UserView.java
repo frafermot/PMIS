@@ -3,6 +3,9 @@ package com.example.examplefeature.ui;
 import com.example.base.ui.MainLayout;
 import com.example.user.User;
 import com.example.user.UserService;
+import com.example.user.Role;
+import com.example.security.PasswordGenerator;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.grid.Grid;
@@ -26,8 +29,13 @@ public class UserView extends VerticalLayout {
     private final UserService userService;
     private final Grid<User> grid = new Grid<>(User.class);
 
-    public UserView(UserService userService) {
+    private final PasswordEncoder passwordEncoder;
+    private final PasswordGenerator passwordGenerator;
+
+    public UserView(UserService userService, PasswordEncoder passwordEncoder, PasswordGenerator passwordGenerator) {
         this.userService = userService;
+        this.passwordEncoder = passwordEncoder;
+        this.passwordGenerator = passwordGenerator;
 
         setSizeFull();
         configureGrid();
@@ -72,12 +80,17 @@ public class UserView extends VerticalLayout {
             User newUser = new User();
             newUser.setName(nameField.getValue());
             newUser.setUvus(uvusField.getValue());
-            // Project is optional now and removed from form
+            newUser.setRole(Role.USER); // Explicitly set Role.USER
+
+            String generatedPassword = passwordGenerator.generateStrongPassword();
+            newUser.setPassword(passwordEncoder.encode(generatedPassword));
 
             userService.createOrUpdate(newUser);
             updateList();
             dialog.close();
-            Notification.show("Usuario creado exitosamente");
+
+            Notification notification = Notification.show("Usuario creado. Contraseña: " + generatedPassword);
+            notification.setDuration(10000);
         });
 
         Button cancelButton = new Button("Cancelar", e -> dialog.close());
