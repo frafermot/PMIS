@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.example.base.ui.MainLayout;
 
+import com.example.security.SecurityService;
 import com.example.user.User;
 import com.example.user.UserService;
 import com.example.user.Role;
@@ -26,16 +27,18 @@ import jakarta.annotation.security.RolesAllowed;
 
 @Route(value = "portfolios", layout = MainLayout.class)
 @PageTitle("Portafolios")
-@RolesAllowed("ADMIN")
+@RolesAllowed({ "ADMIN", "MANAGER" })
 public class PortfolioView extends VerticalLayout {
 
     private final PortfolioService portfolioService;
     private final UserService userService;
+    private final SecurityService securityService;
     private final Grid<Portfolio> grid = new Grid<>(Portfolio.class);
 
-    public PortfolioView(PortfolioService portfolioService, UserService userService) {
+    public PortfolioView(PortfolioService portfolioService, UserService userService, SecurityService securityService) {
         this.portfolioService = portfolioService;
         this.userService = userService;
+        this.securityService = securityService;
 
         setSizeFull();
         configureGrid();
@@ -78,10 +81,16 @@ public class PortfolioView extends VerticalLayout {
     }
 
     private HorizontalLayout createToolbar() {
-        Button addPortfolioButton = new Button("Añadir Portfolio");
-        addPortfolioButton.addClickListener(e -> openPortfolioDialog(null));
+        HorizontalLayout toolbar = new HorizontalLayout();
 
-        return new HorizontalLayout(addPortfolioButton);
+        // Only admins can add new portfolios
+        if (securityService.isAdmin()) {
+            Button addPortfolioButton = new Button("Añadir Portfolio");
+            addPortfolioButton.addClickListener(e -> openPortfolioDialog(null));
+            toolbar.add(addPortfolioButton);
+        }
+
+        return toolbar;
     }
 
     private void deletePortfolio(Portfolio portfolio) {

@@ -46,4 +46,12 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
     @Query("SELECT p FROM Project p LEFT JOIN FETCH p.director LEFT JOIN FETCH p.program LEFT JOIN FETCH p.sponsor WHERE p.id IN (SELECT u.project.id FROM User u WHERE u.id = :userId)")
     List<Project> findAllByUserId(@org.springframework.data.repository.query.Param("userId") Long userId);
 
+    @Query("SELECT p FROM Project p " +
+            "LEFT JOIN FETCH p.director " +
+            "LEFT JOIN FETCH p.program prog " +
+            "LEFT JOIN FETCH prog.portfolio " +
+            "LEFT JOIN FETCH p.sponsor " +
+            "WHERE prog.director.id = :programDirectorId")
+    List<Project> findAllByProgramDirectorIdWithRelations(@Param("programDirectorId") Long programDirectorId);
+
 }

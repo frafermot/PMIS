@@ -4,11 +4,13 @@ import java.util.List;
 
 import com.example.base.ui.MainLayout;
 
+import com.example.security.SecurityService;
 import com.example.user.User;
 import com.example.user.UserService;
 import com.example.user.Role;
 import com.example.portfolio.Portfolio;
 import com.example.portfolio.PortfolioService;
+import com.example.portfolio.PortfolioRepository;
 import com.example.program.Program;
 import com.example.program.ProgramService;
 import com.vaadin.flow.component.button.Button;
@@ -32,14 +34,18 @@ public class ProgramView extends VerticalLayout {
 
     private final ProgramService programService;
     private final PortfolioService portfolioService;
+    private final PortfolioRepository portfolioRepository;
     private final UserService userService;
+    private final SecurityService securityService;
     private final Grid<Program> grid = new Grid<>(Program.class);
 
     public ProgramView(ProgramService programService, PortfolioService portfolioService,
-            UserService userService) {
+            UserService userService, SecurityService securityService, PortfolioRepository portfolioRepository) {
         this.programService = programService;
         this.portfolioService = portfolioService;
+        this.portfolioRepository = portfolioRepository;
         this.userService = userService;
+        this.securityService = securityService;
 
         setSizeFull();
         configureGrid();
@@ -83,10 +89,20 @@ public class ProgramView extends VerticalLayout {
     }
 
     private HorizontalLayout createToolbar() {
-        Button addProgramButton = new Button("Añadir Programa");
-        addProgramButton.addClickListener(e -> openProgramDialog(null));
+        HorizontalLayout toolbar = new HorizontalLayout();
 
-        return new HorizontalLayout(addProgramButton);
+        // Admins and portfolio directors can add new programs
+        boolean isPortfolioDirector = securityService.getCurrentUser() != null &&
+                !portfolioRepository.findAllByDirectorIdWithDirector(securityService.getCurrentUser().getId())
+                        .isEmpty();
+
+        if (securityService.isAdmin() || isPortfolioDirector) {
+            Button addProgramButton = new Button("Añadir Programa");
+            addProgramButton.addClickListener(e -> openProgramDialog(null));
+            toolbar.add(addProgramButton);
+        }
+
+        return toolbar;
     }
 
     private void deleteProgram(Program program) {

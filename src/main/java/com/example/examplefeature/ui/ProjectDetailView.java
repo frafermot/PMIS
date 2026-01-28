@@ -140,13 +140,15 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
 
         directorSelect = new Select<>();
         directorSelect.setLabel("Director");
-        directorSelect.setItems(userService.getAll());
+        // Director debe ser solo rol USER
+        directorSelect.setItems(userService.findAllByRoles(List.of(Role.USER)));
         directorSelect.setItemLabelGenerator(User::getName);
         directorSelect.setValue(currentProject.getDirector());
         directorSelect.setWidthFull();
 
         sponsorSelect = new Select<>();
         sponsorSelect.setLabel("Sponsor");
+        // Sponsor debe ser ADMIN o MANAGER (GESTOR)
         sponsorSelect.setItems(userService.findAllByRoles(List.of(Role.MANAGER, Role.ADMIN)));
         sponsorSelect.setItemLabelGenerator(User::getName);
         sponsorSelect.setValue(currentProject.getSponsor());
@@ -155,11 +157,10 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         Button saveButton = new Button("Guardar Cambios", e -> saveProject());
         saveButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
 
-        VerticalLayout formLayout = new VerticalLayout(
-                new HorizontalLayout(nameField, programSelect),
-                new HorizontalLayout(directorSelect, sponsorSelect),
+        HorizontalLayout formLayout = new HorizontalLayout(nameField, programSelect, directorSelect, sponsorSelect,
                 saveButton);
         formLayout.setWidthFull();
+        formLayout.setAlignItems(Alignment.END);
         add(formLayout);
 
         // Users Section

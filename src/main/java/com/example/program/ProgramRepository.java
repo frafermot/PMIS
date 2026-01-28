@@ -18,6 +18,9 @@ public interface ProgramRepository extends JpaRepository<Program, Long> {
     @Query("SELECT p FROM Program p LEFT JOIN FETCH p.director LEFT JOIN FETCH p.portfolio WHERE p.id = :id")
     Optional<Program> findByIdWithRelations(@Param("id") Long id);
 
+    @Query("SELECT p FROM Program p LEFT JOIN FETCH p.portfolio LEFT JOIN FETCH p.director WHERE p.director.id = :directorId")
+    List<Program> findAllByDirectorIdWithRelations(@Param("directorId") Long directorId);
+
     long countByPortfolioId(Long portfolioId);
 
     @Query("SELECT p FROM Program p LEFT JOIN FETCH p.portfolio LEFT JOIN FETCH p.director WHERE p.portfolio.id = :portfolioId")

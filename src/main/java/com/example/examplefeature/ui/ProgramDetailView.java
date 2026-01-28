@@ -1,8 +1,6 @@
 package com.example.examplefeature.ui;
 
 import com.example.base.ui.MainLayout;
-import com.example.portfolio.Portfolio;
-import com.example.portfolio.PortfolioService;
 import com.example.program.Program;
 import com.example.program.ProgramService;
 import com.example.project.Project;
@@ -10,6 +8,7 @@ import com.example.project.ProjectService;
 import com.example.user.User;
 import com.example.user.UserService;
 import com.example.user.Role;
+import com.example.security.SecurityService;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -36,22 +35,22 @@ import java.util.List;
 public class ProgramDetailView extends VerticalLayout implements HasUrlParameter<Long> {
 
     private final ProgramService programService;
-    private final PortfolioService portfolioService;
     private final ProjectService projectService;
     private final UserService userService;
+    private final SecurityService securityService;
     private Program currentProgram;
     private final Grid<Project> projectGrid = new Grid<>(Project.class, false);
 
     private TextField nameField;
-    private Select<Portfolio> portfolioSelect;
     private Select<User> directorSelect;
 
-    public ProgramDetailView(ProgramService programService, PortfolioService portfolioService,
-            ProjectService projectService, UserService userService) {
+    public ProgramDetailView(ProgramService programService,
+            ProjectService projectService, UserService userService,
+            SecurityService securityService) {
         this.programService = programService;
-        this.portfolioService = portfolioService;
         this.projectService = projectService;
         this.userService = userService;
+        this.securityService = securityService;
 
         setSizeFull();
         setPadding(true);
@@ -98,12 +97,12 @@ public class ProgramDetailView extends VerticalLayout implements HasUrlParameter
         nameField.setValue(currentProgram.getName());
         nameField.setWidthFull();
 
-        portfolioSelect = new Select<>();
-        portfolioSelect.setLabel("Portfolio");
-        portfolioSelect.setItems(portfolioService.getAll());
-        portfolioSelect.setItemLabelGenerator(Portfolio::getName);
-        portfolioSelect.setValue(currentProgram.getPortfolio());
-        portfolioSelect.setWidthFull();
+        // Portfolio as read-only text field (cannot be changed from this view)
+        TextField portfolioField = new TextField("Portfolio");
+        portfolioField.setValue(
+                currentProgram.getPortfolio() != null ? currentProgram.getPortfolio().getName() : "Sin portfolio");
+        portfolioField.setReadOnly(true);
+        portfolioField.setWidthFull();
 
         directorSelect = new Select<>();
         directorSelect.setLabel("Director");
@@ -115,7 +114,7 @@ public class ProgramDetailView extends VerticalLayout implements HasUrlParameter
         Button saveButton = new Button("Guardar Cambios", e -> saveProgram());
         saveButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
 
-        HorizontalLayout formLayout = new HorizontalLayout(nameField, portfolioSelect, directorSelect, saveButton);
+        HorizontalLayout formLayout = new HorizontalLayout(nameField, portfolioField, directorSelect, saveButton);
         formLayout.setWidthFull();
         formLayout.setAlignItems(Alignment.END);
         add(formLayout);
@@ -146,6 +145,19 @@ public class ProgramDetailView extends VerticalLayout implements HasUrlParameter
             Button editButton = new Button("Editar", e -> openEditProjectDialog(project));
             editButton.addThemeVariants(com.vaadin.flow.component.button.ButtonVariant.LUMO_SMALL,
                     com.vaadin.flow.component.button.ButtonVariant.LUMO_PRIMARY);
+
+            // Solo mostrar botón si es admin, director del programa, o director del
+            // portfolio
+            User currentUser = securityService.getCurrentUser();
+            boolean canEdit = securityService.isAdmin() ||
+                    (currentUser != null && currentProgram.getDirector() != null &&
+                            currentProgram.getDirector().getId().equals(currentUser.getId()))
+                    ||
+                    (currentUser != null && currentProgram.getPortfolio() != null &&
+                            currentProgram.getPortfolio().getDirector() != null &&
+                            currentProgram.getPortfolio().getDirector().getId().equals(currentUser.getId()));
+            editButton.setVisible(canEdit);
+
             return editButton;
         }).setHeader("").setWidth("80px").setFlexGrow(0);
 
@@ -154,6 +166,19 @@ public class ProgramDetailView extends VerticalLayout implements HasUrlParameter
             Button deleteButton = new Button("Borrar", e -> deleteProject(project));
             deleteButton.addThemeVariants(com.vaadin.flow.component.button.ButtonVariant.LUMO_SMALL,
                     com.vaadin.flow.component.button.ButtonVariant.LUMO_ERROR);
+
+            // Solo mostrar botón si es admin, director del programa, o director del
+            // portfolio
+            User currentUser = securityService.getCurrentUser();
+            boolean canDelete = securityService.isAdmin() ||
+                    (currentUser != null && currentProgram.getDirector() != null &&
+                            currentProgram.getDirector().getId().equals(currentUser.getId()))
+                    ||
+                    (currentUser != null && currentProgram.getPortfolio() != null &&
+                            currentProgram.getPortfolio().getDirector() != null &&
+                            currentProgram.getPortfolio().getDirector().getId().equals(currentUser.getId()));
+            deleteButton.setVisible(canDelete);
+
             return deleteButton;
         }).setHeader("").setWidth("80px").setFlexGrow(0);
 
@@ -165,13 +190,13 @@ public class ProgramDetailView extends VerticalLayout implements HasUrlParameter
     }
 
     private void saveProgram() {
-        if (nameField.isEmpty() || portfolioSelect.isEmpty() || directorSelect.isEmpty()) {
+        if (nameField.isEmpty() || directorSelect.isEmpty()) {
             Notification.show("Por favor rellene todos los campos");
             return;
         }
 
         currentProgram.setName(nameField.getValue());
-        currentProgram.setPortfolio(portfolioSelect.getValue());
+        // Portfolio cannot be changed from this view
         currentProgram.setDirector(directorSelect.getValue());
 
         programService.createOrUpdate(currentProgram);
@@ -185,7 +210,8 @@ public class ProgramDetailView extends VerticalLayout implements HasUrlParameter
         TextField projectNameField = new TextField("Nombre");
         Select<User> projectDirectorSelect = new Select<>();
         projectDirectorSelect.setLabel("Director");
-        projectDirectorSelect.setItems(userService.getAll());
+        // Director debe ser solo rol USER
+        projectDirectorSelect.setItems(userService.findAllByRoles(List.of(Role.USER)));
         projectDirectorSelect.setItemLabelGenerator(User::getName);
 
         Select<User> projectSponsorSelect = new Select<>();
@@ -235,13 +261,15 @@ public class ProgramDetailView extends VerticalLayout implements HasUrlParameter
 
         Select<User> projectDirectorSelect = new Select<>();
         projectDirectorSelect.setLabel("Director");
-        projectDirectorSelect.setItems(userService.findAllByRoles(List.of(Role.MANAGER, Role.ADMIN)));
+        // Director debe ser solo rol USER
+        projectDirectorSelect.setItems(userService.findAllByRoles(List.of(Role.USER)));
         projectDirectorSelect.setItemLabelGenerator(User::getName);
         projectDirectorSelect.setValue(project.getDirector());
 
         Select<User> projectSponsorSelect = new Select<>();
         projectSponsorSelect.setLabel("Sponsor");
-        projectSponsorSelect.setItems(userService.getAll());
+        // Sponsor debe ser ADMIN o MANAGER (GESTOR)
+        projectSponsorSelect.setItems(userService.findAllByRoles(List.of(Role.MANAGER, Role.ADMIN)));
         projectSponsorSelect.setItemLabelGenerator(User::getName);
         projectSponsorSelect.setValue(project.getSponsor());
 

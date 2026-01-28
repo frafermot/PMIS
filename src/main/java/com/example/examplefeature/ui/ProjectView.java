@@ -4,7 +4,10 @@ import java.util.List;
 
 import com.example.base.ui.MainLayout;
 
+import com.example.security.SecurityService;
+import com.example.portfolio.PortfolioRepository;
 import com.example.program.Program;
+import com.example.program.ProgramRepository;
 import com.example.program.ProgramService;
 import com.example.project.Project;
 import com.example.project.ProjectService;
@@ -33,14 +36,21 @@ public class ProjectView extends VerticalLayout {
     private final ProjectService projectService;
     private final UserService userService;
     private final ProgramService programService;
+    private final PortfolioRepository portfolioRepository;
+    private final ProgramRepository programRepository;
+    private final SecurityService securityService;
 
     private final Grid<Project> grid = new Grid<>(Project.class);
 
     public ProjectView(ProjectService projectService, UserService userService,
-            ProgramService programService) {
+            ProgramService programService, SecurityService securityService, PortfolioRepository portfolioRepository,
+            ProgramRepository programRepository) {
         this.projectService = projectService;
         this.userService = userService;
         this.programService = programService;
+        this.portfolioRepository = portfolioRepository;
+        this.programRepository = programRepository;
+        this.securityService = securityService;
 
         setSizeFull();
         configureGrid();
@@ -86,10 +96,22 @@ public class ProjectView extends VerticalLayout {
     }
 
     private HorizontalLayout createToolbar() {
-        Button addProjectButton = new Button("Añadir Proyecto");
-        addProjectButton.addClickListener(e -> openProjectDialog(null));
+        HorizontalLayout toolbar = new HorizontalLayout();
 
-        return new HorizontalLayout(addProjectButton);
+        // Admins, portfolio directors, and program directors can add new projects
+        boolean isPortfolioDirector = securityService.getCurrentUser() != null &&
+                !portfolioRepository.findAllByDirectorIdWithDirector(securityService.getCurrentUser().getId())
+                        .isEmpty();
+        boolean isProgramDirector = securityService.getCurrentUser() != null &&
+                !programRepository.findAllByDirectorIdWithRelations(securityService.getCurrentUser().getId()).isEmpty();
+
+        if (securityService.isAdmin() || isPortfolioDirector || isProgramDirector) {
+            Button addProjectButton = new Button("Añadir Proyecto");
+            addProjectButton.addClickListener(e -> openProjectDialog(null));
+            toolbar.add(addProjectButton);
+        }
+
+        return toolbar;
     }
 
     private void deleteProject(Project project) {
