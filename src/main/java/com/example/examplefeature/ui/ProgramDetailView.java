@@ -220,29 +220,23 @@ public class ProgramDetailView extends VerticalLayout implements HasUrlParameter
         dialog.setHeaderTitle("Nuevo Proyecto");
 
         TextField projectNameField = new TextField("Nombre");
-        Select<User> projectDirectorSelect = new Select<>();
-        projectDirectorSelect.setLabel("Director");
-        // Director debe ser solo rol USER
-        projectDirectorSelect.setItems(userService.findAllByRoles(List.of(Role.USER)));
-        projectDirectorSelect.setItemLabelGenerator(User::getName);
-
         Select<User> projectSponsorSelect = new Select<>();
         projectSponsorSelect.setLabel("Sponsor");
         projectSponsorSelect.setItems(userService.findAllByRoles(List.of(Role.MANAGER, Role.ADMIN)));
         projectSponsorSelect.setItemLabelGenerator(User::getName);
 
-        VerticalLayout dialogLayout = new VerticalLayout(projectNameField, projectDirectorSelect, projectSponsorSelect);
+        VerticalLayout dialogLayout = new VerticalLayout(projectNameField, projectSponsorSelect);
         dialog.add(dialogLayout);
 
         Button saveButton = new Button("Guardar", e -> {
-            if (projectNameField.isEmpty() || projectDirectorSelect.isEmpty() || projectSponsorSelect.isEmpty()) {
+            if (projectNameField.isEmpty() || projectSponsorSelect.isEmpty()) {
                 Notification.show("Por favor rellene todos los campos");
                 return;
             }
 
             Project newProject = new Project();
             newProject.setName(projectNameField.getValue());
-            newProject.setDirector(projectDirectorSelect.getValue());
+            // Director not set on creation
             newProject.setSponsor(projectSponsorSelect.getValue());
             newProject.setProgram(currentProgram);
 

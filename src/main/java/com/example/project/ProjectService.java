@@ -35,6 +35,13 @@ public class ProjectService {
             }
         }
 
+        // Allow Sponsor to update the project (e.g. assign director)
+        var currentUser = securityService.getCurrentUser();
+        if (currentUser != null && project.getSponsor() != null
+                && project.getSponsor().getId().equals(currentUser.getId())) {
+            return projectRepository.save(project);
+        }
+
         throw new SecurityException("No tienes permisos para realizar esta acción");
     }
 

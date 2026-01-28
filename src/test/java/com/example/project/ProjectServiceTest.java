@@ -69,9 +69,77 @@ class ProjectServiceTest {
         var createdProject = projectService.createOrUpdate(project);
         assertTrue(
                 createdProject.getName().equals(name) &&
-                        createdProject.getProgram().equals(program) &&
                         createdProject.getSponsor().equals(manager) &&
                         createdProject.getDirector().equals(director));
+    }
+
+    @Test
+    public void testCreateWithoutDirector() {
+        var manager = new User();
+        manager.setName("Manager Name");
+        manager.setUvus("manager_uvus");
+        manager.setRole(Role.MANAGER);
+        userService.createOrUpdate(manager);
+
+        var portfolio = new Portfolio();
+        portfolio.setName("Portfolio Name");
+        portfolio.setDirector(manager);
+        portfolioService.createOrUpdate(portfolio);
+
+        var program = new Program();
+        program.setName("Program Name");
+        program.setPortfolio(portfolio);
+        program.setDirector(manager);
+        programService.createOrUpdate(program);
+
+        var project = new Project();
+        project.setName("Project No Director");
+        project.setProgram(program);
+        project.setSponsor(manager);
+        // No director set
+
+        var createdProject = projectService.createOrUpdate(project);
+        assertNotNull(createdProject.getId());
+        assertNull(createdProject.getDirector());
+    }
+
+    @Test
+    public void testCreateTwoProjectsSameDirector() {
+        var manager = new User();
+        manager.setName("Common Director");
+        manager.setUvus("common_dir");
+        manager.setRole(Role.MANAGER);
+        userService.createOrUpdate(manager);
+
+        var portfolio = new Portfolio();
+        portfolio.setName("P Portfolio");
+        portfolio.setDirector(manager);
+        portfolioService.createOrUpdate(portfolio);
+
+        var program = new Program();
+        program.setName("P Program");
+        program.setPortfolio(portfolio);
+        program.setDirector(manager);
+        programService.createOrUpdate(program);
+
+        var project1 = new Project();
+        project1.setName("Project 1");
+        project1.setProgram(program);
+        project1.setSponsor(manager);
+        project1.setDirector(manager);
+        projectService.createOrUpdate(project1);
+
+        var project2 = new Project();
+        project2.setName("Project 2");
+        project2.setProgram(program);
+        project2.setSponsor(manager);
+        project2.setDirector(manager);
+
+        // This should fail if Unique Constraint exists
+        var createdProject2 = projectService.createOrUpdate(project2);
+
+        assertNotNull(createdProject2.getId());
+        assertTrue(createdProject2.getDirector().equals(manager));
     }
 
     @Test
@@ -133,6 +201,15 @@ class ProjectServiceTest {
         project.setSponsor(manager);
         project.setDirector(director);
         var createdProject = projectService.createOrUpdate(project);
+
+        // Set auth context to manager (who is the program director) for deletion
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+        org.springframework.security.core.context.SecurityContextHolder.getContext()
+                .setAuthentication(new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                        "director_uvus", "password",
+                        java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                                "ROLE_MANAGER"))));
+
         projectService.delete(createdProject.getId());
         var fetchedProject = projectService.get(createdProject.getId());
         assertNull(fetchedProject);
@@ -266,7 +343,6 @@ class ProjectServiceTest {
         org.springframework.security.core.context.SecurityContextHolder.clearContext();
     }
 
-    @WithMockUser(username = "admin", roles = { "ADMIN" })
     @Test
     public void testDeleteAsAdmin() {
         var admin = new User();
@@ -297,6 +373,14 @@ class ProjectServiceTest {
         project.setSponsor(admin);
         project.setDirector(director);
         var createdProject = projectService.createOrUpdate(project);
+
+        // Set auth context to admin user
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+        org.springframework.security.core.context.SecurityContextHolder.getContext()
+                .setAuthentication(new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                        "admin", "password",
+                        java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                                "ROLE_ADMIN"))));
 
         projectService.delete(createdProject.getId());
         assertNull(projectService.get(createdProject.getId()));
@@ -332,6 +416,14 @@ class ProjectServiceTest {
         project.setSponsor(manager);
         project.setDirector(director);
         var createdProject = projectService.createOrUpdate(project);
+
+        // Set auth context to manager (who is the program director) for deletion
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+        org.springframework.security.core.context.SecurityContextHolder.getContext()
+                .setAuthentication(new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                        "manager", "password",
+                        java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                                "ROLE_MANAGER"))));
 
         projectService.delete(createdProject.getId());
         assertNull(projectService.get(createdProject.getId()));

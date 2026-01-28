@@ -162,44 +162,83 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         formLayout.setAlignItems(Alignment.END);
         add(formLayout);
 
-        // Enforce strict editing: Only Program Director can edit Project Info
+        // Enforce permissions
         boolean isProgramDirector = false;
         if (currentProject.getProgram() != null) {
             isProgramDirector = securityService.isProgramDirector(currentProject.getProgram().getId());
         }
 
-        if (!isProgramDirector) {
-            nameField.setReadOnly(true);
+        User currentUser = securityService.getCurrentUser();
+        boolean isSponsor = false;
+        if (currentProject.getSponsor() != null && currentUser != null) {
+            isSponsor = currentProject.getSponsor().getId().equals(currentUser.getId());
+        }
+
+        boolean isProjectDirector = false;
+        if (currentProject.getDirector() != null && currentUser != null) {
+            isProjectDirector = currentProject.getDirector().getId().equals(currentUser.getId());
+        }
+
+        boolean isSystemAdmin = securityService.isAdmin();
+        boolean canEditProjectInfo = isSystemAdmin || isProgramDirector;
+        boolean canAssignDirector = canEditProjectInfo || isSponsor;
+
+        nameField.setReadOnly(!canEditProjectInfo);
+        sponsorSelect.setReadOnly(!canEditProjectInfo);
+
+        // Director selection:
+        // Directors must be chosen from users already assigned to the project
+        if (canAssignDirector) {
+            directorSelect.setReadOnly(false);
+
+            // Get only users assigned to this project
+            List<User> projectUsers = userService.findByProject(currentProject.getId());
+
+            // Ensure current director is in the list if they exist
+            if (currentProject.getDirector() != null && !projectUsers.contains(currentProject.getDirector())) {
+                projectUsers.add(currentProject.getDirector());
+            }
+
+            directorSelect.setItems(projectUsers);
+            directorSelect.setValue(currentProject.getDirector());
+        } else {
             directorSelect.setReadOnly(true);
-            sponsorSelect.setReadOnly(true);
+        }
+
+        if (!canEditProjectInfo && !canAssignDirector) {
             saveButton.setVisible(false);
         }
 
         // Users Section
         add(new H3("Usuarios Asignados"));
 
+        boolean canManageUsers = isSystemAdmin || isSponsor || isProjectDirector;
+
         Button addUsersButton = new Button("Añadir Usuarios", e -> openAssignUsersDialog());
         addUsersButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        addUsersButton.setVisible(canManageUsers);
         add(addUsersButton);
 
-        configureGrid();
+        configureGrid(canManageUsers);
         add(userGrid);
         updateUserList();
     }
 
-    private void configureGrid() {
+    private void configureGrid(boolean canManageUsers) {
         userGrid.setSizeFull();
         userGrid.addColumn(User::getId).setHeader("ID").setWidth("100px");
         userGrid.addColumn(User::getName).setHeader("Nombre");
         userGrid.addColumn(User::getUvus).setHeader("UVUS");
 
         // Columna de Eliminar
-        userGrid.addComponentColumn(user -> {
-            Button removeButton = new Button("Eliminar", e -> unassignUser(user));
-            removeButton.addThemeVariants(com.vaadin.flow.component.button.ButtonVariant.LUMO_SMALL,
-                    com.vaadin.flow.component.button.ButtonVariant.LUMO_ERROR);
-            return removeButton;
-        }).setHeader("").setWidth("100px").setFlexGrow(0);
+        if (canManageUsers) {
+            userGrid.addComponentColumn(user -> {
+                Button removeButton = new Button("Eliminar", e -> unassignUser(user));
+                removeButton.addThemeVariants(com.vaadin.flow.component.button.ButtonVariant.LUMO_SMALL,
+                        com.vaadin.flow.component.button.ButtonVariant.LUMO_ERROR);
+                return removeButton;
+            }).setHeader("").setWidth("100px").setFlexGrow(0);
+        }
 
         // Set fixed height to show at least 5 rows with scrolling
         userGrid.setHeight("350px");
@@ -207,9 +246,9 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
     }
 
     private void saveProject() {
-        if (nameField.isEmpty() || directorSelect.isEmpty()
-                || sponsorSelect.isEmpty()) {
-            Notification.show("Por favor rellene todos los campos");
+        if (nameField.isEmpty() || sponsorSelect.isEmpty()) {
+            // Removed directorSelect.isEmpty() check
+            Notification.show("Por favor rellene Nombre y Sponsor");
             return;
         }
 
@@ -225,6 +264,23 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
     private void updateUserList() {
         List<User> assignedUsers = userService.findByProject(currentProject.getId());
         userGrid.setItems(assignedUsers);
+    }
+
+    private void updateDirectorList() {
+        // Update the director select with current project users
+        List<User> projectUsers = userService.findByProject(currentProject.getId());
+
+        // Ensure current director is in the list if they exist
+        if (currentProject.getDirector() != null && !projectUsers.contains(currentProject.getDirector())) {
+            projectUsers.add(currentProject.getDirector());
+        }
+
+        User currentSelection = directorSelect.getValue();
+        directorSelect.setItems(projectUsers);
+        // Restore selection if still valid
+        if (currentSelection != null && projectUsers.contains(currentSelection)) {
+            directorSelect.setValue(currentSelection);
+        }
     }
 
     private void openAssignUsersDialog() {
@@ -283,6 +339,7 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
             }
 
             updateUserList();
+            updateDirectorList();
             dialog.close();
             Notification.show(selectedUsers.size() + " usuario(s) asignado(s) exitosamente");
         });
@@ -300,6 +357,7 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         user.setProject(null);
         userService.createOrUpdate(user);
         updateUserList();
+        updateDirectorList();
         Notification.show("Usuario desasignado exitosamente");
     }
 }

@@ -160,11 +160,6 @@ public class ProjectView extends VerticalLayout {
 
         TextField nameField = new TextField("Nombre");
 
-        Select<User> directorSelect = new Select<>();
-        directorSelect.setLabel("Director");
-        directorSelect.setItems(userService.getAll());
-        directorSelect.setItemLabelGenerator(User::getName);
-
         Select<Program> programSelect = new Select<>();
         programSelect.setLabel("Programa");
 
@@ -186,24 +181,23 @@ public class ProjectView extends VerticalLayout {
 
         if (project != null) {
             nameField.setValue(project.getName());
-            directorSelect.setValue(project.getDirector());
             programSelect.setValue(project.getProgram());
             sponsorSelect.setValue(project.getSponsor());
         }
 
-        VerticalLayout dialogLayout = new VerticalLayout(nameField, directorSelect, programSelect, sponsorSelect);
+        VerticalLayout dialogLayout = new VerticalLayout(nameField, programSelect, sponsorSelect);
         dialog.add(dialogLayout);
 
         Button saveButton = new Button("Guardar", e -> {
-            if (nameField.isEmpty() || directorSelect.isEmpty() || programSelect.isEmpty()
+            if (nameField.isEmpty() || programSelect.isEmpty()
                     || sponsorSelect.isEmpty()) {
-                Notification.show("Por favor rellene todos los campos");
+                Notification.show("Por favor rellene todos los campos requeridos (Nombre, Programa, Sponsor)");
                 return;
             }
 
             Project projectToSave = project == null ? new Project() : project;
             projectToSave.setName(nameField.getValue());
-            projectToSave.setDirector(directorSelect.getValue());
+            // Director is not set here
             projectToSave.setProgram(programSelect.getValue());
             projectToSave.setSponsor(sponsorSelect.getValue());
 

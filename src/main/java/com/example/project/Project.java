@@ -20,8 +20,8 @@ public class Project {
     @NotBlank
     private String name;
 
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "director_id", unique = true)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "director_id")
     private User director;
 
     @ManyToOne(fetch = FetchType.LAZY)
