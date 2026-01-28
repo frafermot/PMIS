@@ -9,7 +9,6 @@ import com.example.user.User;
 import com.example.user.UserService;
 import com.example.user.Role;
 import com.example.portfolio.Portfolio;
-import com.example.portfolio.PortfolioService;
 import com.example.portfolio.PortfolioRepository;
 import com.example.program.Program;
 import com.example.program.ProgramService;
@@ -33,16 +32,14 @@ import jakarta.annotation.security.RolesAllowed;
 public class ProgramView extends VerticalLayout {
 
     private final ProgramService programService;
-    private final PortfolioService portfolioService;
     private final PortfolioRepository portfolioRepository;
     private final UserService userService;
     private final SecurityService securityService;
     private final Grid<Program> grid = new Grid<>(Program.class);
 
-    public ProgramView(ProgramService programService, PortfolioService portfolioService,
+    public ProgramView(ProgramService programService,
             UserService userService, SecurityService securityService, PortfolioRepository portfolioRepository) {
         this.programService = programService;
-        this.portfolioService = portfolioService;
         this.portfolioRepository = portfolioRepository;
         this.userService = userService;
         this.securityService = securityService;
@@ -66,18 +63,36 @@ public class ProgramView extends VerticalLayout {
 
         // Columna de Editar
         grid.addComponentColumn(program -> {
-            Button editButton = new Button("Editar", e -> openProgramDialog(program));
-            editButton.addThemeVariants(com.vaadin.flow.component.button.ButtonVariant.LUMO_SMALL,
-                    com.vaadin.flow.component.button.ButtonVariant.LUMO_PRIMARY);
-            return editButton;
+            boolean canEdit = false;
+            if (program.getPortfolio() != null) {
+                canEdit = securityService.isPortfolioDirector(program.getPortfolio().getId());
+            }
+
+            if (canEdit) {
+                Button editButton = new Button("Editar", e -> openProgramDialog(program));
+                editButton.addThemeVariants(com.vaadin.flow.component.button.ButtonVariant.LUMO_SMALL,
+                        com.vaadin.flow.component.button.ButtonVariant.LUMO_PRIMARY);
+                return editButton;
+            } else {
+                return new com.vaadin.flow.component.html.Div(); // Componente vacío
+            }
         }).setHeader("").setWidth("80px").setFlexGrow(0);
 
         // Columna de Borrar
         grid.addComponentColumn(program -> {
-            Button deleteButton = new Button("Borrar", e -> deleteProgram(program));
-            deleteButton.addThemeVariants(com.vaadin.flow.component.button.ButtonVariant.LUMO_SMALL,
-                    com.vaadin.flow.component.button.ButtonVariant.LUMO_ERROR);
-            return deleteButton;
+            boolean canDelete = false;
+            if (program.getPortfolio() != null) {
+                canDelete = securityService.isPortfolioDirector(program.getPortfolio().getId());
+            }
+
+            if (canDelete) {
+                Button deleteButton = new Button("Borrar", e -> deleteProgram(program));
+                deleteButton.addThemeVariants(com.vaadin.flow.component.button.ButtonVariant.LUMO_SMALL,
+                        com.vaadin.flow.component.button.ButtonVariant.LUMO_ERROR);
+                return deleteButton;
+            } else {
+                return new com.vaadin.flow.component.html.Div(); // Componente vacío
+            }
         }).setHeader("").setWidth("80px").setFlexGrow(0);
 
         // Navigate to detail view on row click
@@ -91,12 +106,12 @@ public class ProgramView extends VerticalLayout {
     private HorizontalLayout createToolbar() {
         HorizontalLayout toolbar = new HorizontalLayout();
 
-        // Admins and portfolio directors can add new programs
+        // Only portfolio directors can add new programs
         boolean isPortfolioDirector = securityService.getCurrentUser() != null &&
                 !portfolioRepository.findAllByDirectorIdWithDirector(securityService.getCurrentUser().getId())
                         .isEmpty();
 
-        if (securityService.isAdmin() || isPortfolioDirector) {
+        if (isPortfolioDirector) {
             Button addProgramButton = new Button("Añadir Programa");
             addProgramButton.addClickListener(e -> openProgramDialog(null));
             toolbar.add(addProgramButton);
@@ -140,7 +155,13 @@ public class ProgramView extends VerticalLayout {
 
         Select<Portfolio> portfolioSelect = new Select<>();
         portfolioSelect.setLabel("Portafolio");
-        portfolioSelect.setItems(portfolioService.getAll());
+
+        // Filter portfolios based on role (Only Director's portfolios)
+        User currentUser = securityService.getCurrentUser();
+        if (currentUser != null) {
+            portfolioSelect.setItems(portfolioRepository.findAllByDirectorIdWithDirector(currentUser.getId()));
+        }
+
         portfolioSelect.setItemLabelGenerator(Portfolio::getName);
 
         Select<User> directorSelect = new Select<>();

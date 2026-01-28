@@ -45,14 +45,18 @@ public class SecurityService {
     }
 
     /**
-     * Checks if the current user has ADMIN role
+     * Checks if the current user has SYSTEM_ADMIN authority (Bypass)
+     */
+    public boolean isSystemAdmin() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth != null
+                && auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_SYSTEM_ADMIN"));
+    }
+
+    /**
+     * Checks if the current user has ADMIN role (Business Admin)
      */
     public boolean isAdmin() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth != null
-                && auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_SYSTEM_ADMIN"))) {
-            return true;
-        }
         User currentUser = getCurrentUser();
         return currentUser != null && currentUser.getRole() == Role.ADMIN;
     }
@@ -89,9 +93,7 @@ public class SecurityService {
      * - Cannot delete any admin
      */
     public boolean canDeleteUser(Long userId) {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth != null
-                && auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_SYSTEM_ADMIN"))) {
+        if (isSystemAdmin()) {
             return true;
         }
 

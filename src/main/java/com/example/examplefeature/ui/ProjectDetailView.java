@@ -2,9 +2,9 @@ package com.example.examplefeature.ui;
 
 import com.example.base.ui.MainLayout;
 import com.example.program.Program;
-import com.example.program.ProgramService;
 import com.example.project.Project;
 import com.example.project.ProjectService;
+import com.example.security.SecurityService;
 import com.example.user.User;
 import com.example.user.UserService;
 import com.example.user.UserRepository;
@@ -35,14 +35,13 @@ import java.util.List;
 public class ProjectDetailView extends VerticalLayout implements HasUrlParameter<Long> {
 
     private final ProjectService projectService;
-    private final ProgramService programService;
     private final UserService userService;
+    private final SecurityService securityService;
     private final UserRepository userRepository;
     private Project currentProject;
     private final Grid<User> userGrid = new Grid<>(User.class, false);
 
     private TextField nameField;
-    private Select<Program> programSelect;
     private Select<User> directorSelect;
     private Select<User> sponsorSelect;
 
@@ -52,12 +51,12 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
     private String originalPortfolioName;
     private String originalProgramName;
 
-    public ProjectDetailView(ProjectService projectService, ProgramService programService, UserService userService,
-            UserRepository userRepository) {
+    public ProjectDetailView(ProjectService projectService, UserService userService,
+            UserRepository userRepository, SecurityService securityService) {
         this.projectService = projectService;
-        this.programService = programService;
         this.userService = userService;
         this.userRepository = userRepository;
+        this.securityService = securityService;
 
         setSizeFull();
         setPadding(true);
@@ -131,12 +130,12 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         nameField.setValue(currentProject.getName());
         nameField.setWidthFull();
 
-        programSelect = new Select<>();
-        programSelect.setLabel("Programa");
-        programSelect.setItems(programService.getAll());
-        programSelect.setItemLabelGenerator(Program::getName);
-        programSelect.setValue(currentProject.getProgram());
-        programSelect.setWidthFull();
+        // Program as read-only text field (cannot be changed from this view)
+        TextField programField = new TextField("Programa");
+        programField
+                .setValue(currentProject.getProgram() != null ? currentProject.getProgram().getName() : "Sin Programa");
+        programField.setReadOnly(true);
+        programField.setWidthFull();
 
         directorSelect = new Select<>();
         directorSelect.setLabel("Director");
@@ -157,11 +156,24 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         Button saveButton = new Button("Guardar Cambios", e -> saveProject());
         saveButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
 
-        HorizontalLayout formLayout = new HorizontalLayout(nameField, programSelect, directorSelect, sponsorSelect,
+        HorizontalLayout formLayout = new HorizontalLayout(nameField, programField, directorSelect, sponsorSelect,
                 saveButton);
         formLayout.setWidthFull();
         formLayout.setAlignItems(Alignment.END);
         add(formLayout);
+
+        // Enforce strict editing: Only Program Director can edit Project Info
+        boolean isProgramDirector = false;
+        if (currentProject.getProgram() != null) {
+            isProgramDirector = securityService.isProgramDirector(currentProject.getProgram().getId());
+        }
+
+        if (!isProgramDirector) {
+            nameField.setReadOnly(true);
+            directorSelect.setReadOnly(true);
+            sponsorSelect.setReadOnly(true);
+            saveButton.setVisible(false);
+        }
 
         // Users Section
         add(new H3("Usuarios Asignados"));
@@ -195,14 +207,14 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
     }
 
     private void saveProject() {
-        if (nameField.isEmpty() || programSelect.isEmpty() || directorSelect.isEmpty()
+        if (nameField.isEmpty() || directorSelect.isEmpty()
                 || sponsorSelect.isEmpty()) {
             Notification.show("Por favor rellene todos los campos");
             return;
         }
 
         currentProject.setName(nameField.getValue());
-        currentProject.setProgram(programSelect.getValue());
+        // Program cannot be changed from this view
         currentProject.setDirector(directorSelect.getValue());
         currentProject.setSponsor(sponsorSelect.getValue());
 

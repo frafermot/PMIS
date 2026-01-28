@@ -86,7 +86,7 @@ public class PortfolioDetailView extends VerticalLayout implements HasUrlParamet
                 securityService.getCurrentUser() != null &&
                 currentPortfolio.getDirector().getId().equals(securityService.getCurrentUser().getId());
 
-        if (securityService.isAdmin() || isPortfolioDirector) {
+        if (isPortfolioDirector) {
             nameField = new TextField("Nombre");
             nameField.setValue(currentPortfolio.getName());
             nameField.setWidthFull();
@@ -128,8 +128,8 @@ public class PortfolioDetailView extends VerticalLayout implements HasUrlParamet
 
         configureGrid();
 
-        // Only show Add Program button if user is admin OR the portfolio director
-        if (securityService.isAdmin() || isPortfolioDirector) {
+        // Only show Add Program button if user is the portfolio director
+        if (isPortfolioDirector) {
             Button addProgramButton = new Button("Añadir Programa", e -> openCreateProgramDialog());
             addProgramButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
             add(addProgramButton);
@@ -152,6 +152,11 @@ public class PortfolioDetailView extends VerticalLayout implements HasUrlParamet
             Button editButton = new Button("Editar", e -> openEditProgramDialog(program));
             editButton.addThemeVariants(com.vaadin.flow.component.button.ButtonVariant.LUMO_SMALL,
                     com.vaadin.flow.component.button.ButtonVariant.LUMO_PRIMARY);
+            // Only show button if user is the portfolio director
+            boolean isDirector = currentPortfolio.getDirector() != null &&
+                    securityService.getCurrentUser() != null &&
+                    currentPortfolio.getDirector().getId().equals(securityService.getCurrentUser().getId());
+            editButton.setVisible(isDirector);
             return editButton;
         }).setHeader("").setWidth("80px").setFlexGrow(0);
 
@@ -160,6 +165,11 @@ public class PortfolioDetailView extends VerticalLayout implements HasUrlParamet
             Button deleteButton = new Button("Borrar", e -> deleteProgram(program));
             deleteButton.addThemeVariants(com.vaadin.flow.component.button.ButtonVariant.LUMO_SMALL,
                     com.vaadin.flow.component.button.ButtonVariant.LUMO_ERROR);
+            // Only show button if user is the portfolio director
+            boolean isDirector = currentPortfolio.getDirector() != null &&
+                    securityService.getCurrentUser() != null &&
+                    currentPortfolio.getDirector().getId().equals(securityService.getCurrentUser().getId());
+            deleteButton.setVisible(isDirector);
             return deleteButton;
         }).setHeader("").setWidth("80px").setFlexGrow(0);
 

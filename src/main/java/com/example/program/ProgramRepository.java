@@ -32,4 +32,7 @@ public interface ProgramRepository extends JpaRepository<Program, Long> {
     @Query("UPDATE Program p SET p.director = null WHERE p.director.id = :directorId")
     void unassignDirector(@Param("directorId") Long directorId);
 
+    @Query("SELECT p FROM Program p LEFT JOIN FETCH p.portfolio LEFT JOIN FETCH p.director WHERE p.portfolio.director.id = :directorId")
+    List<Program> findAllByPortfolioDirectorId(@Param("directorId") Long directorId);
+
 }

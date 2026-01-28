@@ -27,32 +27,18 @@ public class ProgramService {
     }
 
     public Program createOrUpdate(Program program) {
-        // Admins pueden crear y editar cualquier programa
-        // Managers pueden editar programas donde son directores O programas de
-        // portfolios donde son directores
-        // Admins pueden crear y editar cualquier programa
-        // Portfolio Directors pueden editar programas de sus portfolios
-        if (!securityService.isAdmin()) {
-            boolean allowed = false;
-            if (program.getId() != null) {
-                // Editing existing program
-                Program existing = programRepository.findById(program.getId()).orElse(null);
-                if (existing != null && existing.getPortfolio() != null) {
-                    allowed = securityService.isPortfolioDirector(existing.getPortfolio().getId());
-                }
-            } else {
-                // Creating new program
-                if (program.getPortfolio() != null) {
-                    allowed = securityService.isPortfolioDirector(program.getPortfolio().getId());
-                }
-            }
+        if (securityService.isSystemAdmin()) {
+            return programRepository.save(program);
+        }
 
-            if (!allowed) {
-                throw new SecurityException(
-                        "Solo los administradores y directores de portfolio pueden gestionar programas");
+        // Only Portfolio Directors can manage Programs
+        if (program.getPortfolio() != null) {
+            if (securityService.isPortfolioDirector(program.getPortfolio().getId())) {
+                return programRepository.save(program);
             }
         }
-        return programRepository.save(program);
+
+        throw new SecurityException("No tienes permisos para realizar esta acción");
     }
 
     public Program get(Long id) {

@@ -58,18 +58,37 @@ public class PortfolioView extends VerticalLayout {
 
         // Columna de Editar
         grid.addComponentColumn(portfolio -> {
-            Button editButton = new Button("Editar", e -> openPortfolioDialog(portfolio));
-            editButton.addThemeVariants(com.vaadin.flow.component.button.ButtonVariant.LUMO_SMALL,
-                    com.vaadin.flow.component.button.ButtonVariant.LUMO_PRIMARY);
-            return editButton;
+            boolean canEdit = false;
+            if (securityService.isAdmin()) {
+                canEdit = true;
+            } else if (portfolio.getDirector() != null) {
+                User currentUser = securityService.getCurrentUser();
+                if (currentUser != null && currentUser.getId().equals(portfolio.getDirector().getId())) {
+                    canEdit = true;
+                }
+            }
+
+            if (canEdit) {
+                Button editButton = new Button("Editar", e -> openPortfolioDialog(portfolio));
+                editButton.addThemeVariants(com.vaadin.flow.component.button.ButtonVariant.LUMO_SMALL,
+                        com.vaadin.flow.component.button.ButtonVariant.LUMO_PRIMARY);
+                return editButton;
+            } else {
+                return new com.vaadin.flow.component.html.Div();
+            }
         }).setHeader("").setWidth("80px").setFlexGrow(0);
 
         // Columna de Borrar
         grid.addComponentColumn(portfolio -> {
-            Button deleteButton = new Button("Borrar", e -> deletePortfolio(portfolio));
-            deleteButton.addThemeVariants(com.vaadin.flow.component.button.ButtonVariant.LUMO_SMALL,
-                    com.vaadin.flow.component.button.ButtonVariant.LUMO_ERROR);
-            return deleteButton;
+            // Only Admins can delete portfolios
+            if (securityService.isAdmin()) {
+                Button deleteButton = new Button("Borrar", e -> deletePortfolio(portfolio));
+                deleteButton.addThemeVariants(com.vaadin.flow.component.button.ButtonVariant.LUMO_SMALL,
+                        com.vaadin.flow.component.button.ButtonVariant.LUMO_ERROR);
+                return deleteButton;
+            } else {
+                return new com.vaadin.flow.component.html.Div();
+            }
         }).setHeader("").setWidth("80px").setFlexGrow(0);
 
         // Navigate to detail view on row click

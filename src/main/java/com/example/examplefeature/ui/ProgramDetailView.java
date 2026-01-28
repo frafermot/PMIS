@@ -119,14 +119,38 @@ public class ProgramDetailView extends VerticalLayout implements HasUrlParameter
         formLayout.setAlignItems(Alignment.END);
         add(formLayout);
 
+        // Enforce strict editing: Only Portfolio Director can edit Program Info
+        boolean isPortfolioDirector = false;
+        if (currentProgram.getPortfolio() != null) {
+            // Check if current user is director of the portfolio
+            User currentUser = securityService.getCurrentUser();
+            isPortfolioDirector = currentUser != null && currentProgram.getPortfolio().getDirector() != null &&
+                    currentProgram.getPortfolio().getDirector().getId().equals(currentUser.getId());
+        }
+
+        if (!isPortfolioDirector) {
+            nameField.setReadOnly(true);
+            directorSelect.setReadOnly(true);
+            saveButton.setVisible(false);
+        }
+
         // Projects Section
         add(new H3("Proyectos de este Programa"));
 
         configureGrid();
-        Button addProjectButton = new Button("Añadir Proyecto", e -> openCreateProjectDialog());
-        addProjectButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
 
-        add(addProjectButton, projectGrid);
+        // Only show Add Project button if current user is the Program Director
+        User currentUser = securityService.getCurrentUser();
+        boolean isProgramDirector = currentUser != null && currentProgram.getDirector() != null &&
+                currentProgram.getDirector().getId().equals(currentUser.getId());
+
+        if (isProgramDirector) {
+            Button addProjectButton = new Button("Añadir Proyecto", e -> openCreateProjectDialog());
+            addProjectButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+            add(addProjectButton);
+        }
+
+        add(projectGrid);
         updateProjectList();
     }
 
@@ -146,16 +170,10 @@ public class ProgramDetailView extends VerticalLayout implements HasUrlParameter
             editButton.addThemeVariants(com.vaadin.flow.component.button.ButtonVariant.LUMO_SMALL,
                     com.vaadin.flow.component.button.ButtonVariant.LUMO_PRIMARY);
 
-            // Solo mostrar botón si es admin, director del programa, o director del
-            // portfolio
+            // Solo mostrar botón si es el director del programa
             User currentUser = securityService.getCurrentUser();
-            boolean canEdit = securityService.isAdmin() ||
-                    (currentUser != null && currentProgram.getDirector() != null &&
-                            currentProgram.getDirector().getId().equals(currentUser.getId()))
-                    ||
-                    (currentUser != null && currentProgram.getPortfolio() != null &&
-                            currentProgram.getPortfolio().getDirector() != null &&
-                            currentProgram.getPortfolio().getDirector().getId().equals(currentUser.getId()));
+            boolean canEdit = currentUser != null && currentProgram.getDirector() != null &&
+                    currentProgram.getDirector().getId().equals(currentUser.getId());
             editButton.setVisible(canEdit);
 
             return editButton;
@@ -167,16 +185,10 @@ public class ProgramDetailView extends VerticalLayout implements HasUrlParameter
             deleteButton.addThemeVariants(com.vaadin.flow.component.button.ButtonVariant.LUMO_SMALL,
                     com.vaadin.flow.component.button.ButtonVariant.LUMO_ERROR);
 
-            // Solo mostrar botón si es admin, director del programa, o director del
-            // portfolio
+            // Solo mostrar botón si es el director del programa
             User currentUser = securityService.getCurrentUser();
-            boolean canDelete = securityService.isAdmin() ||
-                    (currentUser != null && currentProgram.getDirector() != null &&
-                            currentProgram.getDirector().getId().equals(currentUser.getId()))
-                    ||
-                    (currentUser != null && currentProgram.getPortfolio() != null &&
-                            currentProgram.getPortfolio().getDirector() != null &&
-                            currentProgram.getPortfolio().getDirector().getId().equals(currentUser.getId()));
+            boolean canDelete = currentUser != null && currentProgram.getDirector() != null &&
+                    currentProgram.getDirector().getId().equals(currentUser.getId());
             deleteButton.setVisible(canDelete);
 
             return deleteButton;

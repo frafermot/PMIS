@@ -1,5 +1,6 @@
 package com.example.security;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -179,8 +180,8 @@ public class SecurityPermissionTest {
     }
 
     @Test
-    public void testPortfolioDirectorCanManageProjects() {
-        // Portfolio Director should also be able to manage projects in their portfolio
+    public void testPortfolioDirectorCannotManageProjects() {
+        // Portfolio Director should NOT be able to manage projects directly (strict)
         authenticateAsSystem();
 
         Portfolio portfolio = new Portfolio();
@@ -201,11 +202,11 @@ public class SecurityPermissionTest {
         Project project = new Project();
         project.setName("Proj1");
         project.setProgram(program);
-        Project created = projectService.createOrUpdate(project);
-        assertNotNull(created);
 
-        // Delete
-        projectService.delete(created.getId());
+        // Assert throws
+        assertThrows(SecurityException.class, () -> {
+            projectService.createOrUpdate(project);
+        });
     }
 
     @Test
@@ -246,6 +247,61 @@ public class SecurityPermissionTest {
 
         // Delete User
         userService.delete(created.getId());
+    }
+
+    @Test
+    public void testAdminCanManageManagers() {
+        authenticate(admin);
+
+        // Admin SHOULD allow managing managers
+        User manager = new User();
+        manager.setRole(Role.MANAGER);
+        manager.setUvus("manager_test");
+        manager.setName("Manager Test");
+        User createdManager = userService.createOrUpdate(manager);
+        assertNotNull(createdManager);
+        assertEquals(Role.MANAGER, createdManager.getRole());
+    }
+
+    @Test
+    public void testAdminCannotManageUsers() {
+        authenticate(admin);
+
+        // Admin SHOULD NOT allow managing users (only PMO Director can)
+        User user = new User();
+        user.setRole(Role.USER);
+        user.setUvus("user_test");
+        user.setName("User Test");
+
+        assertThrows(SecurityException.class, () -> {
+            userService.createOrUpdate(user);
+        });
+    }
+
+    @Test
+    public void testAdminCannotCreateProgram() {
+        authenticate(admin);
+
+        // Admin SHOULD NOT allow creating programs (only Portfolio Director can)
+        Program program = new Program();
+        program.setName("AdminProg");
+
+        assertThrows(SecurityException.class, () -> {
+            programService.createOrUpdate(program);
+        });
+    }
+
+    @Test
+    public void testAdminCannotCreateProject() {
+        authenticate(admin);
+
+        // Admin SHOULD NOT allow creating projects (only Program Director can)
+        Project project = new Project();
+        project.setName("AdminProj");
+
+        assertThrows(SecurityException.class, () -> {
+            projectService.createOrUpdate(project);
+        });
     }
 
     @Test
@@ -323,12 +379,15 @@ public class SecurityPermissionTest {
     }
 
     @Test
-    public void testAdminCanManageEverything() {
-        authenticate(admin);
+    public void testSystemAdminCanManageEverything() {
+        authenticateAsSystem();
 
         // Portfolios
         Portfolio p = new Portfolio();
         p.setName("AdminP");
+        // System admin can assign any director?
+        // Or create without director? The test sets 'admin' as director.
+        // Assuming 'admin' variable is available (it's a field).
         p.setDirector(admin);
         p = portfolioService.createOrUpdate(p);
 

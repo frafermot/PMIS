@@ -34,7 +34,8 @@ public class PortfolioService {
         // Solo admins pueden crear portfolios nuevos
         // Managers solo pueden editar portfolios donde son directores
         // Only admins can create or update portfolios
-        if (securityService.getCurrentUser() != null && !securityService.isAdmin()) {
+        if (securityService.getCurrentUser() != null && !securityService.isAdmin()
+                && !securityService.isSystemAdmin()) {
             throw new SecurityException("Solo los administradores pueden crear o editar portfolios");
         }
         return portfolioRepository.save(portfolio);
@@ -47,7 +48,8 @@ public class PortfolioService {
     public void delete(Long id) {
         // Solo admins y managers (de sus propios portfolios) pueden eliminar
         // Only admins can delete portfolios
-        if (securityService.getCurrentUser() != null && !securityService.isAdmin()) {
+        if (securityService.getCurrentUser() != null && !securityService.isAdmin()
+                && !securityService.isSystemAdmin()) {
             throw new SecurityException("Solo los administradores pueden eliminar portfolios");
         }
         pmoRepository.deleteByPortfolioId(id);
@@ -74,7 +76,8 @@ public class PortfolioService {
     public void deleteWithCascade(Long id) {
         // Solo admins y managers (de sus propios portfolios) pueden eliminar
         // Only admins can delete portfolios
-        if (securityService.getCurrentUser() != null && !securityService.isAdmin()) {
+        if (securityService.getCurrentUser() != null && !securityService.isAdmin()
+                && !securityService.isSystemAdmin()) {
             throw new SecurityException("Solo los administradores pueden eliminar portfolios");
         }
         List<Program> programs = programRepository.findAllByPortfolioId(id);

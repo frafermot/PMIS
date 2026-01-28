@@ -34,23 +34,18 @@ public class UserService {
     }
 
     public User createOrUpdate(User user) {
-        if (securityService.isAdmin()) {
+        if (securityService.isSystemAdmin()) {
+            return userRepository.save(user);
+        }
+
+        // Admin can manage Managers and Admins
+        if ((user.getRole() == Role.MANAGER || user.getRole() == Role.ADMIN) && securityService.isAdmin()) {
             return userRepository.save(user);
         }
 
         // PMO Directors can manage Users (create/update)
-        if (securityService.isPmoDirector()) {
-            // Can only manage USER role
-            if (user.getRole() != Role.USER) {
-                throw new SecurityException("Los directores de PMO solo pueden gestionar usuarios con rol USER");
-            }
-            // If updating, check existing role
-            if (user.getId() != null) {
-                User existing = userRepository.findById(user.getId()).orElse(null);
-                if (existing != null && existing.getRole() != Role.USER) {
-                    throw new SecurityException("No puedes modificar un usuario que no sea USER");
-                }
-            }
+        if (user.getRole() == Role.USER && securityService.isPmoDirector()) {
+            // Basic validation or just allow
             return userRepository.save(user);
         }
 

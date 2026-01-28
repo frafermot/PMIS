@@ -24,44 +24,18 @@ public class ProjectService {
     }
 
     public Project createOrUpdate(Project project) {
-        // Admins pueden crear y editar cualquier proyecto
-        // Managers pueden editar proyectos donde son directores del programa O
-        // directores del portfolio
-        // Admins can create and edit any project
-        // Portfolio Directors can edit projects in their portfolio
-        // Program Directors can edit projects in their program
-        if (!securityService.isAdmin()) {
-            boolean allowed = false;
+        if (securityService.isSystemAdmin()) {
+            return projectRepository.save(project);
+        }
 
-            if (project.getId() != null) {
-                // Editing existing
-                Project existing = projectRepository.findById(project.getId()).orElse(null);
-                if (existing != null && existing.getProgram() != null) {
-                    if (securityService.isProgramDirector(existing.getProgram().getId())) {
-                        allowed = true;
-                    } else if (existing.getProgram().getPortfolio() != null &&
-                            securityService.isPortfolioDirector(existing.getProgram().getPortfolio().getId())) {
-                        allowed = true;
-                    }
-                }
-            } else {
-                // Creating new
-                if (project.getProgram() != null) {
-                    if (securityService.isProgramDirector(project.getProgram().getId())) {
-                        allowed = true;
-                    } else if (project.getProgram().getPortfolio() != null &&
-                            securityService.isPortfolioDirector(project.getProgram().getPortfolio().getId())) {
-                        allowed = true;
-                    }
-                }
-            }
-
-            if (!allowed) {
-                throw new SecurityException(
-                        "Solo los administradores, directores de portfolio y directores de programa pueden gestionar proyectos");
+        // Only Program Directors can manage Projects
+        if (project.getProgram() != null) {
+            if (securityService.isProgramDirector(project.getProgram().getId())) {
+                return projectRepository.save(project);
             }
         }
-        return projectRepository.save(project);
+
+        throw new SecurityException("No tienes permisos para realizar esta acción");
     }
 
     public Project get(Long id) {
@@ -83,9 +57,6 @@ public class ProjectService {
             boolean allowed = false;
             if (project.getProgram() != null) {
                 if (securityService.isProgramDirector(project.getProgram().getId())) {
-                    allowed = true;
-                } else if (project.getProgram().getPortfolio() != null &&
-                        securityService.isPortfolioDirector(project.getProgram().getPortfolio().getId())) {
                     allowed = true;
                 }
             }
@@ -138,9 +109,6 @@ public class ProjectService {
             boolean allowed = false;
             if (project.getProgram() != null) {
                 if (securityService.isProgramDirector(project.getProgram().getId())) {
-                    allowed = true;
-                } else if (project.getProgram().getPortfolio() != null &&
-                        securityService.isPortfolioDirector(project.getProgram().getPortfolio().getId())) {
                     allowed = true;
                 }
             }
