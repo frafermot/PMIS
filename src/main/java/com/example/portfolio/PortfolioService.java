@@ -33,24 +33,9 @@ public class PortfolioService {
     public Portfolio createOrUpdate(Portfolio portfolio) {
         // Solo admins pueden crear portfolios nuevos
         // Managers solo pueden editar portfolios donde son directores
-        if (securityService.getCurrentUser() != null) {
-            if (!securityService.isAdmin()) {
-                // Si es manager, verificar que sea el director del portfolio
-                if (!securityService.isManager()) {
-                    throw new SecurityException("Solo los administradores y gestores pueden crear o editar portfolios");
-                }
-                // Si está editando un portfolio existente, verificar que sea el director
-                if (portfolio.getId() != null) {
-                    Portfolio existing = portfolioRepository.findById(portfolio.getId()).orElse(null);
-                    if (existing == null || existing.getDirector() == null ||
-                            !existing.getDirector().getId().equals(securityService.getCurrentUser().getId())) {
-                        throw new SecurityException("Solo puedes editar portfolios donde eres director");
-                    }
-                } else {
-                    // Managers no pueden crear nuevos portfolios
-                    throw new SecurityException("Solo los administradores pueden crear nuevos portfolios");
-                }
-            }
+        // Only admins can create or update portfolios
+        if (securityService.getCurrentUser() != null && !securityService.isAdmin()) {
+            throw new SecurityException("Solo los administradores pueden crear o editar portfolios");
         }
         return portfolioRepository.save(portfolio);
     }
@@ -61,18 +46,9 @@ public class PortfolioService {
 
     public void delete(Long id) {
         // Solo admins y managers (de sus propios portfolios) pueden eliminar
-        if (securityService.getCurrentUser() != null) {
-            if (!securityService.isAdmin()) {
-                if (!securityService.isManager()) {
-                    throw new SecurityException("Solo los administradores y gestores pueden eliminar portfolios");
-                }
-                // Verificar que el manager sea el director del portfolio
-                Portfolio portfolio = portfolioRepository.findById(id).orElse(null);
-                if (portfolio == null || portfolio.getDirector() == null ||
-                        !portfolio.getDirector().getId().equals(securityService.getCurrentUser().getId())) {
-                    throw new SecurityException("Solo puedes eliminar portfolios donde eres director");
-                }
-            }
+        // Only admins can delete portfolios
+        if (securityService.getCurrentUser() != null && !securityService.isAdmin()) {
+            throw new SecurityException("Solo los administradores pueden eliminar portfolios");
         }
         pmoRepository.deleteByPortfolioId(id);
         portfolioRepository.deleteById(id);
@@ -97,18 +73,9 @@ public class PortfolioService {
 
     public void deleteWithCascade(Long id) {
         // Solo admins y managers (de sus propios portfolios) pueden eliminar
-        if (securityService.getCurrentUser() != null) {
-            if (!securityService.isAdmin()) {
-                if (!securityService.isManager()) {
-                    throw new SecurityException("Solo los administradores y gestores pueden eliminar portfolios");
-                }
-                // Verificar que el manager sea el director del portfolio
-                Portfolio portfolio = portfolioRepository.findById(id).orElse(null);
-                if (portfolio == null || portfolio.getDirector() == null ||
-                        !portfolio.getDirector().getId().equals(securityService.getCurrentUser().getId())) {
-                    throw new SecurityException("Solo puedes eliminar portfolios donde eres director");
-                }
-            }
+        // Only admins can delete portfolios
+        if (securityService.getCurrentUser() != null && !securityService.isAdmin()) {
+            throw new SecurityException("Solo los administradores pueden eliminar portfolios");
         }
         List<Program> programs = programRepository.findAllByPortfolioId(id);
         for (Program program : programs) {

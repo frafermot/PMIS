@@ -27,45 +27,38 @@ public class ProjectService {
         // Admins pueden crear y editar cualquier proyecto
         // Managers pueden editar proyectos donde son directores del programa O
         // directores del portfolio
-        if (securityService.getCurrentUser() != null && !securityService.isAdmin()) {
-            if (!securityService.isManager()) {
-                throw new SecurityException("Solo los administradores y gestores pueden crear o editar proyectos");
-            }
-            // Si está editando, verificar permisos
-            if (project.getId() != null) {
-                Project existing = projectRepository.findById(project.getId()).orElse(null);
-                if (existing == null || existing.getProgram() == null) {
-                    throw new SecurityException("Proyecto o programa no encontrado");
-                }
-                // Permitir si es director del programa O director del portfolio
-                boolean isProgramDirector = existing.getProgram().getDirector() != null &&
-                        existing.getProgram().getDirector().getId().equals(securityService.getCurrentUser().getId());
-                boolean isPortfolioDirector = existing.getProgram().getPortfolio() != null &&
-                        existing.getProgram().getPortfolio().getDirector() != null &&
-                        existing.getProgram().getPortfolio().getDirector().getId()
-                                .equals(securityService.getCurrentUser().getId());
+        // Admins can create and edit any project
+        // Portfolio Directors can edit projects in their portfolio
+        // Program Directors can edit projects in their program
+        if (!securityService.isAdmin()) {
+            boolean allowed = false;
 
-                if (!isProgramDirector && !isPortfolioDirector) {
-                    throw new SecurityException(
-                            "Solo puedes editar proyectos de programas donde eres director o de portfolios donde eres director");
+            if (project.getId() != null) {
+                // Editing existing
+                Project existing = projectRepository.findById(project.getId()).orElse(null);
+                if (existing != null && existing.getProgram() != null) {
+                    if (securityService.isProgramDirector(existing.getProgram().getId())) {
+                        allowed = true;
+                    } else if (existing.getProgram().getPortfolio() != null &&
+                            securityService.isPortfolioDirector(existing.getProgram().getPortfolio().getId())) {
+                        allowed = true;
+                    }
                 }
             } else {
-                // Al crear, verificar que el programa pertenece a un portfolio del manager O
-                // que es director del programa
-                if (project.getProgram() == null) {
-                    throw new SecurityException("Debes especificar un programa");
+                // Creating new
+                if (project.getProgram() != null) {
+                    if (securityService.isProgramDirector(project.getProgram().getId())) {
+                        allowed = true;
+                    } else if (project.getProgram().getPortfolio() != null &&
+                            securityService.isPortfolioDirector(project.getProgram().getPortfolio().getId())) {
+                        allowed = true;
+                    }
                 }
-                boolean isProgramDirector = project.getProgram().getDirector() != null &&
-                        project.getProgram().getDirector().getId().equals(securityService.getCurrentUser().getId());
-                boolean isPortfolioDirector = project.getProgram().getPortfolio() != null &&
-                        project.getProgram().getPortfolio().getDirector() != null &&
-                        project.getProgram().getPortfolio().getDirector().getId()
-                                .equals(securityService.getCurrentUser().getId());
+            }
 
-                if (!isProgramDirector && !isPortfolioDirector) {
-                    throw new SecurityException(
-                            "Solo puedes crear proyectos en programas donde eres director o de portfolios donde eres director");
-                }
+            if (!allowed) {
+                throw new SecurityException(
+                        "Solo los administradores, directores de portfolio y directores de programa pueden gestionar proyectos");
             }
         }
         return projectRepository.save(project);
@@ -79,25 +72,26 @@ public class ProjectService {
         // Admins pueden eliminar cualquier proyecto
         // Managers pueden eliminar proyectos donde son directores del programa O
         // directores del portfolio
-        if (securityService.getCurrentUser() != null && !securityService.isAdmin()) {
-            if (!securityService.isManager()) {
-                throw new SecurityException("Solo los administradores y gestores pueden eliminar proyectos");
-            }
+        // Admins can delete any project
+        // Portfolio Directors can delete projects in their portfolio
+        // Program Directors can delete projects in their program
+        if (!securityService.isAdmin()) {
             Project project = projectRepository.findById(id).orElse(null);
-            if (project == null || project.getProgram() == null) {
-                throw new SecurityException("Proyecto o programa no encontrado");
-            }
-            // Permitir si es director del programa O director del portfolio
-            boolean isProgramDirector = project.getProgram().getDirector() != null &&
-                    project.getProgram().getDirector().getId().equals(securityService.getCurrentUser().getId());
-            boolean isPortfolioDirector = project.getProgram().getPortfolio() != null &&
-                    project.getProgram().getPortfolio().getDirector() != null &&
-                    project.getProgram().getPortfolio().getDirector().getId()
-                            .equals(securityService.getCurrentUser().getId());
+            if (project == null)
+                return;
 
-            if (!isProgramDirector && !isPortfolioDirector) {
+            boolean allowed = false;
+            if (project.getProgram() != null) {
+                if (securityService.isProgramDirector(project.getProgram().getId())) {
+                    allowed = true;
+                } else if (project.getProgram().getPortfolio() != null &&
+                        securityService.isPortfolioDirector(project.getProgram().getPortfolio().getId())) {
+                    allowed = true;
+                }
+            }
+            if (!allowed) {
                 throw new SecurityException(
-                        "Solo puedes eliminar proyectos de programas donde eres director o de portfolios donde eres director");
+                        "Solo los administradores, directores de portfolio y directores de programa pueden eliminar proyectos");
             }
         }
         // Smart delete: desasignar todos los usuarios del proyecto antes de eliminarlo
@@ -133,25 +127,26 @@ public class ProjectService {
         // Admins pueden eliminar cualquier proyecto
         // Managers pueden eliminar proyectos donde son directores del programa O
         // directores del portfolio
-        if (securityService.getCurrentUser() != null && !securityService.isAdmin()) {
-            if (!securityService.isManager()) {
-                throw new SecurityException("Solo los administradores y gestores pueden eliminar proyectos");
-            }
+        // Admins can delete any project
+        // Portfolio Directors can delete projects in their portfolio
+        // Program Directors can delete projects in their program
+        if (!securityService.isAdmin()) {
             Project project = projectRepository.findById(id).orElse(null);
-            if (project == null || project.getProgram() == null) {
-                throw new SecurityException("Proyecto o programa no encontrado");
-            }
-            // Permitir si es director del programa O director del portfolio
-            boolean isProgramDirector = project.getProgram().getDirector() != null &&
-                    project.getProgram().getDirector().getId().equals(securityService.getCurrentUser().getId());
-            boolean isPortfolioDirector = project.getProgram().getPortfolio() != null &&
-                    project.getProgram().getPortfolio().getDirector() != null &&
-                    project.getProgram().getPortfolio().getDirector().getId()
-                            .equals(securityService.getCurrentUser().getId());
+            if (project == null)
+                return;
 
-            if (!isProgramDirector && !isPortfolioDirector) {
+            boolean allowed = false;
+            if (project.getProgram() != null) {
+                if (securityService.isProgramDirector(project.getProgram().getId())) {
+                    allowed = true;
+                } else if (project.getProgram().getPortfolio() != null &&
+                        securityService.isPortfolioDirector(project.getProgram().getPortfolio().getId())) {
+                    allowed = true;
+                }
+            }
+            if (!allowed) {
                 throw new SecurityException(
-                        "Solo puedes eliminar proyectos de programas donde eres director o de portfolios donde eres director");
+                        "Solo los administradores, directores de portfolio y directores de programa pueden eliminar proyectos");
             }
         }
         userRepository.unassignUsersFromProject(id);

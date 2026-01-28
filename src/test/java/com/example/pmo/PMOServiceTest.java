@@ -28,6 +28,14 @@ class PMOServiceTest {
     @Autowired
     PortfolioService portfolioService;
 
+    @org.junit.jupiter.api.BeforeEach
+    public void setupSecurity() {
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken("system", "pass",
+                        java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                                "ROLE_SYSTEM_ADMIN"))));
+    }
+
     @Test
     public void testCreateOrUpdate() {
         var manager = new User();
@@ -150,7 +158,6 @@ class PMOServiceTest {
         assertTrue(createdPMO.getName().equals("Admin PMO"));
     }
 
-    @WithMockUser(username = "manager", roles = { "MANAGER" })
     @Test
     public void testCreateOrUpdateAsManager() {
         var manager = new User();
@@ -169,6 +176,13 @@ class PMOServiceTest {
         pmo.setName("Manager PMO");
         pmo.setPortfolio(portfolio);
         pmo.setDirector(manager);
+
+        // Switch to Manager Auth
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken("manager",
+                        "password",
+                        java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                                "ROLE_MANAGER"))));
 
         assertThrows(SecurityException.class, () -> {
             pmoService.createOrUpdate(pmo);

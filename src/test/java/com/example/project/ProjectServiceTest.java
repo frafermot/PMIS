@@ -32,6 +32,14 @@ class ProjectServiceTest {
     @Autowired
     UserService userService;
 
+    @org.junit.jupiter.api.BeforeEach
+    public void setupSecurity() {
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken("system", "pass",
+                        java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                                "ROLE_SYSTEM_ADMIN"))));
+    }
+
     @Test
     public void testCreateOrUpdate() {
         var manager = new User();
