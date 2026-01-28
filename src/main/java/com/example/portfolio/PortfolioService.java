@@ -40,7 +40,7 @@ public class PortfolioService {
     }
 
     public Portfolio get(Long id) {
-        return portfolioRepository.findById(id).orElse(null);
+        return portfolioRepository.findByIdWithDirector(id).orElse(null);
     }
 
     public void delete(Long id) {

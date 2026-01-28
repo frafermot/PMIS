@@ -20,7 +20,6 @@ import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
-import com.vaadin.flow.router.Menu;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 
@@ -28,7 +27,6 @@ import jakarta.annotation.security.RolesAllowed;
 
 @Route(value = "proyectos", layout = MainLayout.class)
 @PageTitle("Proyectos")
-@Menu(order = 5, icon = "vaadin:archive", title = "Proyectos")
 @RolesAllowed({ "ADMIN", "MANAGER" })
 public class ProjectView extends VerticalLayout {
 
@@ -54,7 +52,7 @@ public class ProjectView extends VerticalLayout {
     private void configureGrid() {
         grid.setSizeFull();
         grid.removeAllColumns();
-        grid.addColumn(Project::getId).setHeader("ID");
+        grid.addColumn(Project::getId).setHeader("ID").setWidth("100px");
         grid.addColumn(Project::getName).setHeader("Nombre");
         grid.addColumn(project -> project.getDirector() != null ? project.getDirector().getName() : "Sin Director")
                 .setHeader("Director");
@@ -63,9 +61,26 @@ public class ProjectView extends VerticalLayout {
         grid.addColumn(project -> project.getSponsor() != null ? project.getSponsor().getName() : "Sin Sponsor")
                 .setHeader("Sponsor");
 
-        grid.asSingleSelect().addValueChangeListener(event -> {
-            if (event.getValue() != null) {
-                openProjectDialog(event.getValue());
+        // Columna de Editar
+        grid.addComponentColumn(project -> {
+            Button editButton = new Button("Editar", e -> openProjectDialog(project));
+            editButton.addThemeVariants(com.vaadin.flow.component.button.ButtonVariant.LUMO_SMALL,
+                    com.vaadin.flow.component.button.ButtonVariant.LUMO_PRIMARY);
+            return editButton;
+        }).setHeader("").setWidth("80px").setFlexGrow(0);
+
+        // Columna de Borrar
+        grid.addComponentColumn(project -> {
+            Button deleteButton = new Button("Borrar", e -> deleteProject(project));
+            deleteButton.addThemeVariants(com.vaadin.flow.component.button.ButtonVariant.LUMO_SMALL,
+                    com.vaadin.flow.component.button.ButtonVariant.LUMO_ERROR);
+            return deleteButton;
+        }).setHeader("").setWidth("80px").setFlexGrow(0);
+
+        // Navigate to detail view on row click
+        grid.addItemClickListener(event -> {
+            if (event.getItem() != null) {
+                com.vaadin.flow.component.UI.getCurrent().navigate("project/" + event.getItem().getId());
             }
         });
     }
@@ -75,6 +90,33 @@ public class ProjectView extends VerticalLayout {
         addProjectButton.addClickListener(e -> openProjectDialog(null));
 
         return new HorizontalLayout(addProjectButton);
+    }
+
+    private void deleteProject(Project project) {
+        if (projectService.hasAssignedUsers(project.getId())) {
+            Dialog confirmDialog = new Dialog();
+            confirmDialog.setHeaderTitle("Eliminar Proyecto");
+            confirmDialog.add(
+                    "Este proyecto tiene usuarios asignados. ¿Desea desasignar los usuarios y eliminar el proyecto?");
+
+            Button confirmDeleteButton = new Button("Eliminar", event -> {
+                projectService.deleteSafe(project.getId());
+                updateList();
+                confirmDialog.close();
+                Notification.show("Proyecto eliminado exitosamente y usuarios desasignados");
+            });
+            confirmDeleteButton.getStyle().set("color", "red");
+
+            Button cancelDeleteButton = new Button("Cancelar", event -> confirmDialog.close());
+
+            confirmDialog.getFooter().add(cancelDeleteButton);
+            confirmDialog.getFooter().add(confirmDeleteButton);
+            confirmDialog.open();
+        } else {
+            projectService.delete(project.getId());
+            updateList();
+            Notification.show("Proyecto eliminado exitosamente");
+        }
     }
 
     private void openProjectDialog(Project project) {
@@ -129,51 +171,10 @@ public class ProjectView extends VerticalLayout {
 
         Button cancelButton = new Button("Cancelar", e -> dialog.close());
 
-        Button deleteButton = new Button("Eliminar", e -> {
-            if (project != null) {
-                if (projectService.hasAssignedUsers(project.getId())) {
-                    Dialog confirmDialog = new Dialog();
-                    confirmDialog.setHeaderTitle("Eliminar Proyecto");
-                    confirmDialog.add(
-                            "Este proyecto tiene usuarios asignados. ¿Desea desasignar los usuarios y eliminar el proyecto?");
-
-                    Button confirmDeleteButton = new Button("Eliminar", event -> {
-                        projectService.deleteSafe(project.getId());
-                        updateList();
-                        dialog.close();
-                        confirmDialog.close();
-                        Notification.show("Proyecto eliminado exitosamente y usuarios desasignados");
-                    });
-                    confirmDeleteButton.getStyle().set("color", "red");
-
-                    Button cancelDeleteButton = new Button("Cancelar", event -> confirmDialog.close());
-
-                    confirmDialog.getFooter().add(cancelDeleteButton);
-                    confirmDialog.getFooter().add(confirmDeleteButton);
-                    confirmDialog.open();
-                } else {
-                    projectService.delete(project.getId());
-                    updateList();
-                    dialog.close();
-                    Notification.show("Proyecto eliminado exitosamente");
-                }
-            }
-        });
-        deleteButton.getStyle().set("color", "red");
-
         dialog.getFooter().add(cancelButton);
-        if (project != null) {
-            dialog.getFooter().add(deleteButton);
-        }
         dialog.getFooter().add(saveButton);
 
         dialog.open();
-
-        dialog.addOpenedChangeListener(e -> {
-            if (!e.isOpened()) {
-                grid.asSingleSelect().clear();
-            }
-        });
     }
 
     private void updateList() {

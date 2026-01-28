@@ -24,7 +24,7 @@ public class ProjectService {
     }
 
     public Project get(Long id) {
-        return projectRepository.findById(id).orElse(null);
+        return projectRepository.findByIdWithRelations(id).orElse(null);
     }
 
     public void delete(Long id) {
@@ -34,6 +34,14 @@ public class ProjectService {
     public List<Project> getAll() {
         List<Project> projects = projectRepository.findAllWithRelations();
         return projects;
+    }
+
+    public List<Project> getByProgramId(Long programId) {
+        return projectRepository.findAllByProgramId(programId);
+    }
+
+    public List<Project> getByUserId(Long userId) {
+        return projectRepository.findAllByUserId(userId);
     }
 
     public boolean hasAssignedUsers(Long id) {

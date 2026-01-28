@@ -5,12 +5,16 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface PortfolioRepository extends JpaRepository<Portfolio, Long> {
 
     @Query("SELECT p FROM Portfolio p LEFT JOIN FETCH p.director")
     List<Portfolio> findAllWithDirector();
+
+    @Query("SELECT p FROM Portfolio p LEFT JOIN FETCH p.director WHERE p.id = :id")
+    Optional<Portfolio> findByIdWithDirector(@org.springframework.data.repository.query.Param("id") Long id);
 
     long countByDirectorId(Long directorId);
 
