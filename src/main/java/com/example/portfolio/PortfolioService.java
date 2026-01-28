@@ -31,9 +31,11 @@ public class PortfolioService {
     }
 
     public Portfolio createOrUpdate(Portfolio portfolio) {
-        // Solo admins pueden crear o editar portfolios (solo validar si hay un usuario
-        // autenticado)
-        if (securityService.getCurrentUser() != null && !securityService.isAdmin()) {
+        // Solo admins pueden crear portfolios nuevos
+        // Managers solo pueden editar portfolios donde son directores
+        // Only admins can create or update portfolios
+        if (securityService.getCurrentUser() != null && !securityService.isAdmin()
+                && !securityService.isSystemAdmin()) {
             throw new SecurityException("Solo los administradores pueden crear o editar portfolios");
         }
         return portfolioRepository.save(portfolio);
@@ -44,9 +46,10 @@ public class PortfolioService {
     }
 
     public void delete(Long id) {
-        // Solo admins pueden eliminar portfolios (solo validar si hay un usuario
-        // autenticado)
-        if (securityService.getCurrentUser() != null && !securityService.isAdmin()) {
+        // Solo admins y managers (de sus propios portfolios) pueden eliminar
+        // Only admins can delete portfolios
+        if (securityService.getCurrentUser() != null && !securityService.isAdmin()
+                && !securityService.isSystemAdmin()) {
             throw new SecurityException("Solo los administradores pueden eliminar portfolios");
         }
         pmoRepository.deleteByPortfolioId(id);
@@ -54,8 +57,16 @@ public class PortfolioService {
     }
 
     public List<Portfolio> getAll() {
-        List<Portfolio> portfolios = portfolioRepository.findAllWithDirector();
-        return portfolios;
+        // Admins ven todos los portfolios
+        // Managers solo ven portfolios donde son directores O directores de programas
+        if (securityService.isAdmin()) {
+            return portfolioRepository.findAllWithDirector();
+        } else if (securityService.isManager()) {
+            // Managers see portfolios where they are director OR where they direct a
+            // program
+            return portfolioRepository.findByDirectorIdOrProgramDirectorId(securityService.getCurrentUser().getId());
+        }
+        return portfolioRepository.findAllWithDirector();
     }
 
     public boolean hasPrograms(Long id) {
@@ -63,9 +74,10 @@ public class PortfolioService {
     }
 
     public void deleteWithCascade(Long id) {
-        // Solo admins pueden eliminar portfolios (solo validar si hay un usuario
-        // autenticado)
-        if (securityService.getCurrentUser() != null && !securityService.isAdmin()) {
+        // Solo admins y managers (de sus propios portfolios) pueden eliminar
+        // Only admins can delete portfolios
+        if (securityService.getCurrentUser() != null && !securityService.isAdmin()
+                && !securityService.isSystemAdmin()) {
             throw new SecurityException("Solo los administradores pueden eliminar portfolios");
         }
         List<Program> programs = programRepository.findAllByPortfolioId(id);

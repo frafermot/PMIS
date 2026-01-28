@@ -34,7 +34,39 @@ public class UserService {
     }
 
     public User createOrUpdate(User user) {
-        return userRepository.save(user);
+        if (securityService.isSystemAdmin()) {
+            return userRepository.save(user);
+        }
+
+        // Admin can manage Managers and Admins
+        if ((user.getRole() == Role.MANAGER || user.getRole() == Role.ADMIN) && securityService.isAdmin()) {
+            return userRepository.save(user);
+        }
+
+        // PMO Directors can manage Users (create/update)
+        if (user.getRole() == Role.USER && securityService.isPmoDirector()) {
+            // Basic validation or just allow
+            return userRepository.save(user);
+        }
+
+        // Project Directors can assign users to their project
+        // This effectively means updating a User to set their project
+        if (user.getId() != null && user.getProject() != null) {
+            if (securityService.isProjectDirector(user.getProject().getId())) {
+                // Must be USER
+                User existing = userRepository.findById(user.getId()).orElse(null);
+                if (existing != null && existing.getRole() == Role.USER) {
+                    // Allow only if role remains USER (implicit in object passed, but we should be
+                    // careful)
+                    if (user.getRole() != Role.USER) {
+                        throw new SecurityException("No puedes cambiar el rol del usuario");
+                    }
+                    return userRepository.save(user);
+                }
+            }
+        }
+
+        throw new SecurityException("No tienes permisos para realizar esta acción");
     }
 
     public User get(Long userId) {
@@ -44,7 +76,17 @@ public class UserService {
     public void delete(Long userId) {
         // Validate deletion permissions
         if (!securityService.canDeleteUser(userId)) {
-            throw new SecurityException("No tiene permisos para eliminar este usuario");
+            // Check if PMO Director deleted a USER
+            if (securityService.isPmoDirector()) {
+                User target = userRepository.findById(userId).orElse(null);
+                if (target != null && target.getRole() == Role.USER) {
+                    // Allow PMO Director to delete USER
+                } else {
+                    throw new SecurityException("No tiene permisos para eliminar este usuario");
+                }
+            } else {
+                throw new SecurityException("No tiene permisos para eliminar este usuario");
+            }
         }
 
         User userToDelete = userRepository.findById(userId).orElse(null);
@@ -109,10 +151,20 @@ public class UserService {
 
     public void deleteSafe(Long id) {
         // Validate deletion permissions
-        if (!securityService.canDeleteUser(id)) {
+        // Re-using logic from delete() for permission check
+        boolean customPermission = false;
+        if (securityService.isPmoDirector()) {
+            User target = userRepository.findById(id).orElse(null);
+            if (target != null && target.getRole() == Role.USER) {
+                customPermission = true;
+            }
+        }
+
+        if (!customPermission && !securityService.canDeleteUser(id)) {
             throw new SecurityException("No tiene permisos para eliminar este usuario");
         }
 
+        // ... (rest of logic same as original but we need careful merge)
         User userToDelete = userRepository.findById(id).orElse(null);
         if (userToDelete != null && userToDelete.getRole() == Role.ADMIN) {
             throw new SecurityException("No se puede eliminar un usuario con rol ADMIN");

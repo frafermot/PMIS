@@ -8,6 +8,7 @@ import com.example.program.ProgramService;
 import com.example.user.User;
 import com.example.user.UserService;
 import com.example.user.Role;
+import com.example.security.SecurityService;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -36,6 +37,7 @@ public class PortfolioDetailView extends VerticalLayout implements HasUrlParamet
     private final PortfolioService portfolioService;
     private final ProgramService programService;
     private final UserService userService;
+    private final SecurityService securityService;
     private Portfolio currentPortfolio;
     private final Grid<Program> programGrid = new Grid<>(Program.class, false);
 
@@ -43,10 +45,11 @@ public class PortfolioDetailView extends VerticalLayout implements HasUrlParamet
     private Select<User> directorSelect;
 
     public PortfolioDetailView(PortfolioService portfolioService, ProgramService programService,
-            UserService userService) {
+            UserService userService, SecurityService securityService) {
         this.portfolioService = portfolioService;
         this.programService = programService;
         this.userService = userService;
+        this.securityService = securityService;
 
         setSizeFull();
         setPadding(true);
@@ -78,33 +81,61 @@ public class PortfolioDetailView extends VerticalLayout implements HasUrlParamet
         // Portfolio Info Section
         add(new H2("Información del Portfolio"));
 
-        nameField = new TextField("Nombre");
-        nameField.setValue(currentPortfolio.getName());
-        nameField.setWidthFull();
+        // Only show edit form if user is admin OR the portfolio director
+        boolean isPortfolioDirector = currentPortfolio.getDirector() != null &&
+                securityService.getCurrentUser() != null &&
+                currentPortfolio.getDirector().getId().equals(securityService.getCurrentUser().getId());
 
-        directorSelect = new Select<>();
-        directorSelect.setLabel("Director");
-        directorSelect.setItems(userService.findAllByRoles(List.of(Role.MANAGER, Role.ADMIN)));
-        directorSelect.setItemLabelGenerator(User::getName);
-        directorSelect.setValue(currentPortfolio.getDirector());
-        directorSelect.setWidthFull();
+        if (isPortfolioDirector) {
+            nameField = new TextField("Nombre");
+            nameField.setValue(currentPortfolio.getName());
+            nameField.setWidthFull();
 
-        Button saveButton = new Button("Guardar Cambios", e -> savePortfolio());
-        saveButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+            directorSelect = new Select<>();
+            directorSelect.setLabel("Director");
+            directorSelect.setItems(userService.findAllByRoles(List.of(Role.MANAGER, Role.ADMIN)));
+            directorSelect.setItemLabelGenerator(User::getName);
+            directorSelect.setValue(currentPortfolio.getDirector());
+            directorSelect.setWidthFull();
 
-        HorizontalLayout formLayout = new HorizontalLayout(nameField, directorSelect, saveButton);
-        formLayout.setWidthFull();
-        formLayout.setAlignItems(Alignment.END);
-        add(formLayout);
+            Button saveButton = new Button("Guardar Cambios", e -> savePortfolio());
+            saveButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+
+            HorizontalLayout formLayout = new HorizontalLayout(nameField, directorSelect, saveButton);
+            formLayout.setWidthFull();
+            formLayout.setAlignItems(Alignment.END);
+            add(formLayout);
+        } else {
+            // Read-only display for non-directors
+            TextField readOnlyName = new TextField("Nombre");
+            readOnlyName.setValue(currentPortfolio.getName());
+            readOnlyName.setReadOnly(true);
+            readOnlyName.setWidthFull();
+
+            TextField readOnlyDirector = new TextField("Director");
+            readOnlyDirector.setValue(
+                    currentPortfolio.getDirector() != null ? currentPortfolio.getDirector().getName() : "Sin director");
+            readOnlyDirector.setReadOnly(true);
+            readOnlyDirector.setWidthFull();
+
+            HorizontalLayout readOnlyLayout = new HorizontalLayout(readOnlyName, readOnlyDirector);
+            readOnlyLayout.setWidthFull();
+            add(readOnlyLayout);
+        }
 
         // Programs Section
         add(new H3("Programas de este Portfolio"));
 
         configureGrid();
-        Button addProgramButton = new Button("Añadir Programa", e -> openCreateProgramDialog());
-        addProgramButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
 
-        add(addProgramButton, programGrid);
+        // Only show Add Program button if user is the portfolio director
+        if (isPortfolioDirector) {
+            Button addProgramButton = new Button("Añadir Programa", e -> openCreateProgramDialog());
+            addProgramButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+            add(addProgramButton);
+        }
+
+        add(programGrid);
         updateProgramList();
     }
 
@@ -121,6 +152,11 @@ public class PortfolioDetailView extends VerticalLayout implements HasUrlParamet
             Button editButton = new Button("Editar", e -> openEditProgramDialog(program));
             editButton.addThemeVariants(com.vaadin.flow.component.button.ButtonVariant.LUMO_SMALL,
                     com.vaadin.flow.component.button.ButtonVariant.LUMO_PRIMARY);
+            // Only show button if user is the portfolio director
+            boolean isDirector = currentPortfolio.getDirector() != null &&
+                    securityService.getCurrentUser() != null &&
+                    currentPortfolio.getDirector().getId().equals(securityService.getCurrentUser().getId());
+            editButton.setVisible(isDirector);
             return editButton;
         }).setHeader("").setWidth("80px").setFlexGrow(0);
 
@@ -129,6 +165,11 @@ public class PortfolioDetailView extends VerticalLayout implements HasUrlParamet
             Button deleteButton = new Button("Borrar", e -> deleteProgram(program));
             deleteButton.addThemeVariants(com.vaadin.flow.component.button.ButtonVariant.LUMO_SMALL,
                     com.vaadin.flow.component.button.ButtonVariant.LUMO_ERROR);
+            // Only show button if user is the portfolio director
+            boolean isDirector = currentPortfolio.getDirector() != null &&
+                    securityService.getCurrentUser() != null &&
+                    currentPortfolio.getDirector().getId().equals(securityService.getCurrentUser().getId());
+            deleteButton.setVisible(isDirector);
             return deleteButton;
         }).setHeader("").setWidth("80px").setFlexGrow(0);
 
@@ -194,7 +235,20 @@ public class PortfolioDetailView extends VerticalLayout implements HasUrlParamet
     }
 
     private void updateProgramList() {
-        programGrid.setItems(programService.getByPortfolioId(currentPortfolio.getId()));
+        List<Program> programs = programService.getByPortfolioId(currentPortfolio.getId());
+
+        // Filter programs for managers: show only programs where they are director
+        if (!securityService.isAdmin()) {
+            Long currentUserId = securityService.getCurrentUser() != null ? securityService.getCurrentUser().getId()
+                    : null;
+            if (currentUserId != null) {
+                programs = programs.stream()
+                        .filter(p -> p.getDirector() != null && p.getDirector().getId().equals(currentUserId))
+                        .toList();
+            }
+        }
+
+        programGrid.setItems(programs);
     }
 
     private void openEditProgramDialog(Program program) {

@@ -4,8 +4,9 @@ import java.util.List;
 
 import com.example.base.ui.MainLayout;
 
+import com.example.security.SecurityService;
 import com.example.program.Program;
-import com.example.program.ProgramService;
+import com.example.program.ProgramRepository;
 import com.example.project.Project;
 import com.example.project.ProjectService;
 import com.example.user.User;
@@ -31,16 +32,19 @@ import jakarta.annotation.security.RolesAllowed;
 public class ProjectView extends VerticalLayout {
 
     private final ProjectService projectService;
+    private final SecurityService securityService;
     private final UserService userService;
-    private final ProgramService programService;
+    private final ProgramRepository programRepository;
 
     private final Grid<Project> grid = new Grid<>(Project.class);
 
-    public ProjectView(ProjectService projectService, UserService userService,
-            ProgramService programService) {
+    public ProjectView(ProjectService projectService,
+            SecurityService securityService, UserService userService,
+            ProgramRepository programRepository) {
         this.projectService = projectService;
+        this.securityService = securityService;
         this.userService = userService;
-        this.programService = programService;
+        this.programRepository = programRepository;
 
         setSizeFull();
         configureGrid();
@@ -63,18 +67,40 @@ public class ProjectView extends VerticalLayout {
 
         // Columna de Editar
         grid.addComponentColumn(project -> {
-            Button editButton = new Button("Editar", e -> openProjectDialog(project));
-            editButton.addThemeVariants(com.vaadin.flow.component.button.ButtonVariant.LUMO_SMALL,
-                    com.vaadin.flow.component.button.ButtonVariant.LUMO_PRIMARY);
-            return editButton;
+            boolean canEdit = false;
+            if (project.getProgram() != null) {
+                if (securityService.isProgramDirector(project.getProgram().getId())) {
+                    canEdit = true;
+                }
+            }
+
+            if (canEdit) {
+                Button editButton = new Button("Editar", e -> openProjectDialog(project));
+                editButton.addThemeVariants(com.vaadin.flow.component.button.ButtonVariant.LUMO_SMALL,
+                        com.vaadin.flow.component.button.ButtonVariant.LUMO_PRIMARY);
+                return editButton;
+            } else {
+                return new com.vaadin.flow.component.html.Div(); // Componente vacío
+            }
         }).setHeader("").setWidth("80px").setFlexGrow(0);
 
         // Columna de Borrar
         grid.addComponentColumn(project -> {
-            Button deleteButton = new Button("Borrar", e -> deleteProject(project));
-            deleteButton.addThemeVariants(com.vaadin.flow.component.button.ButtonVariant.LUMO_SMALL,
-                    com.vaadin.flow.component.button.ButtonVariant.LUMO_ERROR);
-            return deleteButton;
+            boolean canDelete = false;
+            if (project.getProgram() != null) {
+                if (securityService.isProgramDirector(project.getProgram().getId())) {
+                    canDelete = true;
+                }
+            }
+
+            if (canDelete) {
+                Button deleteButton = new Button("Borrar", e -> deleteProject(project));
+                deleteButton.addThemeVariants(com.vaadin.flow.component.button.ButtonVariant.LUMO_SMALL,
+                        com.vaadin.flow.component.button.ButtonVariant.LUMO_ERROR);
+                return deleteButton;
+            } else {
+                return new com.vaadin.flow.component.html.Div(); // Componente vacío
+            }
         }).setHeader("").setWidth("80px").setFlexGrow(0);
 
         // Navigate to detail view on row click
@@ -86,10 +112,19 @@ public class ProjectView extends VerticalLayout {
     }
 
     private HorizontalLayout createToolbar() {
-        Button addProjectButton = new Button("Añadir Proyecto");
-        addProjectButton.addClickListener(e -> openProjectDialog(null));
+        HorizontalLayout toolbar = new HorizontalLayout();
 
-        return new HorizontalLayout(addProjectButton);
+        // Program directors can add new projects
+        boolean isProgramDirector = securityService.getCurrentUser() != null &&
+                !programRepository.findAllByDirectorIdWithRelations(securityService.getCurrentUser().getId()).isEmpty();
+
+        if (isProgramDirector) {
+            Button addProjectButton = new Button("Añadir Proyecto");
+            addProjectButton.addClickListener(e -> openProjectDialog(null));
+            toolbar.add(addProjectButton);
+        }
+
+        return toolbar;
     }
 
     private void deleteProject(Project project) {
@@ -125,14 +160,18 @@ public class ProjectView extends VerticalLayout {
 
         TextField nameField = new TextField("Nombre");
 
-        Select<User> directorSelect = new Select<>();
-        directorSelect.setLabel("Director");
-        directorSelect.setItems(userService.getAll());
-        directorSelect.setItemLabelGenerator(User::getName);
-
         Select<Program> programSelect = new Select<>();
         programSelect.setLabel("Programa");
-        programSelect.setItems(programService.getAll());
+
+        // Filter Programs (Only those managed by current user)
+        java.util.Set<Program> programs = new java.util.HashSet<>();
+        User currentUser = securityService.getCurrentUser();
+        if (currentUser != null) {
+            // As Program Director
+            programs.addAll(programRepository.findAllByDirectorIdWithRelations(currentUser.getId()));
+        }
+        programSelect.setItems(programs);
+
         programSelect.setItemLabelGenerator(Program::getName);
 
         Select<User> sponsorSelect = new Select<>();
@@ -142,24 +181,23 @@ public class ProjectView extends VerticalLayout {
 
         if (project != null) {
             nameField.setValue(project.getName());
-            directorSelect.setValue(project.getDirector());
             programSelect.setValue(project.getProgram());
             sponsorSelect.setValue(project.getSponsor());
         }
 
-        VerticalLayout dialogLayout = new VerticalLayout(nameField, directorSelect, programSelect, sponsorSelect);
+        VerticalLayout dialogLayout = new VerticalLayout(nameField, programSelect, sponsorSelect);
         dialog.add(dialogLayout);
 
         Button saveButton = new Button("Guardar", e -> {
-            if (nameField.isEmpty() || directorSelect.isEmpty() || programSelect.isEmpty()
+            if (nameField.isEmpty() || programSelect.isEmpty()
                     || sponsorSelect.isEmpty()) {
-                Notification.show("Por favor rellene todos los campos");
+                Notification.show("Por favor rellene todos los campos requeridos (Nombre, Programa, Sponsor)");
                 return;
             }
 
             Project projectToSave = project == null ? new Project() : project;
             projectToSave.setName(nameField.getValue());
-            projectToSave.setDirector(directorSelect.getValue());
+            // Director is not set here
             projectToSave.setProgram(programSelect.getValue());
             projectToSave.setSponsor(sponsorSelect.getValue());
 

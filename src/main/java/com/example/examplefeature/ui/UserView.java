@@ -5,6 +5,7 @@ import com.example.user.User;
 import com.example.user.UserService;
 import com.example.user.Role;
 import com.example.security.PasswordGenerator;
+import com.example.security.SecurityService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.dialog.Dialog;
@@ -27,15 +28,18 @@ import jakarta.annotation.security.RolesAllowed;
 public class UserView extends VerticalLayout {
 
     private final UserService userService;
+    private final SecurityService securityService;
     private final Grid<User> grid = new Grid<>(User.class);
 
     private final PasswordEncoder passwordEncoder;
     private final PasswordGenerator passwordGenerator;
 
-    public UserView(UserService userService, PasswordEncoder passwordEncoder, PasswordGenerator passwordGenerator) {
+    public UserView(UserService userService, PasswordEncoder passwordEncoder, PasswordGenerator passwordGenerator,
+            SecurityService securityService) {
         this.userService = userService;
         this.passwordEncoder = passwordEncoder;
         this.passwordGenerator = passwordGenerator;
+        this.securityService = securityService;
 
         setSizeFull();
         configureGrid();
@@ -61,10 +65,17 @@ public class UserView extends VerticalLayout {
     }
 
     private HorizontalLayout createToolbar() {
-        Button addUserButton = new Button("Añadir Usuario");
-        addUserButton.addClickListener(e -> openCreateUserDialog());
+        HorizontalLayout toolbar = new HorizontalLayout();
 
-        return new HorizontalLayout(addUserButton);
+        // Only PMO Directors can add new Users (Role.USER)
+        // Admins manage Managers/Admins in GestorView
+        if (securityService.isPmoDirector()) {
+            Button addUserButton = new Button("Añadir Usuario");
+            addUserButton.addClickListener(e -> openCreateUserDialog());
+            toolbar.add(addUserButton);
+        }
+
+        return toolbar;
     }
 
     private void openUserDetailDialog(User user) {
@@ -87,47 +98,49 @@ public class UserView extends VerticalLayout {
         dialog.add(dialogLayout);
 
         Button closeButton = new Button("Cerrar", e -> dialog.close());
-
-        Button deleteButton = new Button("Eliminar", e -> {
-            try {
-                if (userService.hasAssignedEntities(user.getId())) {
-                    Dialog confirmDialog = new Dialog();
-                    confirmDialog.setHeaderTitle("Eliminar Usuario");
-                    confirmDialog.add(
-                            "Este usuario está asignado como director o sponsor en otros elementos. ¿Desea desasignarlo y eliminarlo?");
-
-                    Button confirmDeleteButton = new Button("Eliminar", event -> {
-                        try {
-                            userService.deleteSafe(user.getId());
-                            updateList();
-                            dialog.close();
-                            confirmDialog.close();
-                            Notification.show("Usuario eliminado y desasignado exitosamente");
-                        } catch (SecurityException ex) {
-                            Notification.show("Error: " + ex.getMessage(), 5000, Notification.Position.MIDDLE);
-                        }
-                    });
-                    confirmDeleteButton.getStyle().set("color", "red");
-
-                    Button cancelDeleteButton = new Button("Cancelar", event -> confirmDialog.close());
-
-                    confirmDialog.getFooter().add(cancelDeleteButton);
-                    confirmDialog.getFooter().add(confirmDeleteButton);
-                    confirmDialog.open();
-                } else {
-                    userService.delete(user.getId());
-                    updateList();
-                    dialog.close();
-                    Notification.show("Usuario eliminado exitosamente");
-                }
-            } catch (SecurityException ex) {
-                Notification.show("Error: " + ex.getMessage(), 5000, Notification.Position.MIDDLE);
-            }
-        });
-        deleteButton.getStyle().set("color", "red");
-
         dialog.getFooter().add(closeButton);
-        dialog.getFooter().add(deleteButton);
+
+        // Only PMO Directors can delete Users (Role.USER)
+        if (securityService.isPmoDirector()) {
+            Button deleteButton = new Button("Eliminar", e -> {
+                try {
+                    if (userService.hasAssignedEntities(user.getId())) {
+                        Dialog confirmDialog = new Dialog();
+                        confirmDialog.setHeaderTitle("Eliminar Usuario");
+                        confirmDialog.add(
+                                "Este usuario está asignado como director o sponsor en otros elementos. ¿Desea desasignarlo y eliminarlo?");
+
+                        Button confirmDeleteButton = new Button("Eliminar", event -> {
+                            try {
+                                userService.deleteSafe(user.getId());
+                                updateList();
+                                dialog.close();
+                                confirmDialog.close();
+                                Notification.show("Usuario eliminado y desasignado exitosamente");
+                            } catch (SecurityException ex) {
+                                Notification.show("Error: " + ex.getMessage(), 5000, Notification.Position.MIDDLE);
+                            }
+                        });
+                        confirmDeleteButton.getStyle().set("color", "red");
+
+                        Button cancelDeleteButton = new Button("Cancelar", event -> confirmDialog.close());
+
+                        confirmDialog.getFooter().add(cancelDeleteButton);
+                        confirmDialog.getFooter().add(confirmDeleteButton);
+                        confirmDialog.open();
+                    } else {
+                        userService.delete(user.getId());
+                        updateList();
+                        dialog.close();
+                        Notification.show("Usuario eliminado exitosamente");
+                    }
+                } catch (SecurityException ex) {
+                    Notification.show("Error: " + ex.getMessage(), 5000, Notification.Position.MIDDLE);
+                }
+            });
+            deleteButton.getStyle().set("color", "red");
+            dialog.getFooter().add(deleteButton);
+        }
 
         dialog.open();
 

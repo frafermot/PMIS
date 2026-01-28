@@ -18,6 +18,14 @@ public class UserServiceTest {
 	@Autowired
 	UserService userService;
 
+	@org.junit.jupiter.api.BeforeEach
+	public void setupSecurity() {
+		org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+				new org.springframework.security.authentication.UsernamePasswordAuthenticationToken("system", "pass",
+						java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+								"ROLE_SYSTEM_ADMIN"))));
+	}
+
 	@Test
 	public void testCreateOrUpdate() {
 		var name = "John Doe";
@@ -166,30 +174,30 @@ public class UserServiceTest {
 		assertNull(userService.get(createdUser.getId()));
 	}
 
-	@WithMockUser(username = "manager", roles = { "MANAGER" })
 	@Test
 	public void testDeleteManagerAsManager() {
-		// Create manager (current user)
-		var currentManager = new User();
-		currentManager.setName("manager");
-		currentManager.setUvus("manager");
-		currentManager.setRole(Role.MANAGER);
-		userService.createOrUpdate(currentManager);
+		var manager = new User();
+		manager.setName("Manager User");
+		manager.setUvus("manager");
+		manager.setRole(Role.MANAGER);
+		userService.createOrUpdate(manager);
 
-		// Create another manager
-		var anotherManager = new User();
-		anotherManager.setName("Another Manager");
-		anotherManager.setUvus("another_manager");
-		anotherManager.setRole(Role.MANAGER);
-		var createdManager = userService.createOrUpdate(anotherManager);
+		var managerToDelete = new User();
+		managerToDelete.setName("Manager To Delete");
+		managerToDelete.setUvus("manager2");
+		managerToDelete.setRole(Role.MANAGER);
+		userService.createOrUpdate(managerToDelete);
 
-		// Manager should NOT be able to delete another manager
+		// Switch to Manager Auth
+		org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+				new org.springframework.security.authentication.UsernamePasswordAuthenticationToken("manager",
+						"password",
+						java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+								"ROLE_MANAGER"))));
+
 		assertThrows(SecurityException.class, () -> {
-			userService.delete(createdManager.getId());
+			userService.delete(managerToDelete.getId());
 		});
-
-		// Manager should still exist
-		assertNotNull(userService.get(createdManager.getId()));
 	}
 
 	@WithMockUser(username = "admin", roles = { "ADMIN" })

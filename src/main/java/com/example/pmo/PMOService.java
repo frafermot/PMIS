@@ -20,9 +20,13 @@ public class PMOService {
     }
 
     public PMO createOrUpdate(PMO pmo) {
-        // Solo admins pueden crear o editar PMOs (solo validar si hay un usuario
-        // autenticado)
-        if (securityService.getCurrentUser() != null && !securityService.isAdmin()) {
+        // Allow system initialization (no user) or System Admin bypass
+        if (securityService.getCurrentUser() == null || securityService.isSystemAdmin()) {
+            return pmoRepository.save(pmo);
+        }
+
+        // Solo admins pueden crear o editar PMOs
+        if (!securityService.isAdmin()) {
             throw new SecurityException("Solo los administradores pueden crear o editar PMOs");
         }
         return pmoRepository.save(pmo);
@@ -33,8 +37,14 @@ public class PMOService {
     }
 
     public void delete(Long id) {
-        // Solo admins pueden eliminar PMOs (solo validar si hay un usuario autenticado)
-        if (securityService.getCurrentUser() != null && !securityService.isAdmin()) {
+        // Allow system initialization (no user) or System Admin bypass
+        if (securityService.getCurrentUser() == null || securityService.isSystemAdmin()) {
+            pmoRepository.deleteById(id);
+            return;
+        }
+
+        // Solo admins pueden eliminar PMOs
+        if (!securityService.isAdmin()) {
             throw new SecurityException("Solo los administradores pueden eliminar PMOs");
         }
         pmoRepository.deleteById(id);

@@ -27,6 +27,14 @@ public class ProgramServiceTest {
     @Autowired
     UserService userService;
 
+    @org.junit.jupiter.api.BeforeEach
+    public void setupSecurity() {
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken("system", "pass",
+                        java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                                "ROLE_SYSTEM_ADMIN"))));
+    }
+
     @Test
     public void testCreateOrUpdate() {
         var manager = new User();
@@ -89,6 +97,15 @@ public class ProgramServiceTest {
         program.setPortfolio(portfolio);
         program.setDirector(manager);
         var createdProgram = programService.createOrUpdate(program);
+
+        // Set auth context to manager (who is the portfolio director) for deletion
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+        org.springframework.security.core.context.SecurityContextHolder.getContext()
+                .setAuthentication(new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                        "director_uvus", "password",
+                        java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                                "ROLE_MANAGER"))));
+
         programService.delete(createdProgram.getId());
         var fetchedProgram = programService.get(createdProgram.getId());
         assertNull(fetchedProgram);
@@ -185,7 +202,6 @@ public class ProgramServiceTest {
         org.springframework.security.core.context.SecurityContextHolder.clearContext();
     }
 
-    @WithMockUser(username = "admin", roles = { "ADMIN" })
     @Test
     public void testDeleteAsAdmin() {
         var admin = new User();
@@ -204,6 +220,14 @@ public class ProgramServiceTest {
         program.setPortfolio(portfolio);
         program.setDirector(admin);
         var createdProgram = programService.createOrUpdate(program);
+
+        // Set auth context to admin user (who is the portfolio director)
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+        org.springframework.security.core.context.SecurityContextHolder.getContext()
+                .setAuthentication(new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                        "admin", "password",
+                        java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                                "ROLE_ADMIN"))));
 
         programService.delete(createdProgram.getId());
         assertNull(programService.get(createdProgram.getId()));
@@ -227,6 +251,14 @@ public class ProgramServiceTest {
         program.setPortfolio(createdPortfolio);
         program.setDirector(manager);
         var createdProgram = programService.createOrUpdate(program);
+
+        // Set auth context to manager (who is the portfolio director) for deletion
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+        org.springframework.security.core.context.SecurityContextHolder.getContext()
+                .setAuthentication(new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                        "manager", "password",
+                        java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                                "ROLE_MANAGER"))));
 
         programService.delete(createdProgram.getId());
         assertNull(programService.get(createdProgram.getId()));

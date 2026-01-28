@@ -11,9 +11,21 @@ import org.springframework.stereotype.Service;
 public class SecurityService {
 
     private final UserRepository userRepository;
+    private final com.example.portfolio.PortfolioRepository portfolioRepository;
+    private final com.example.program.ProgramRepository programRepository;
+    private final com.example.project.ProjectRepository projectRepository;
+    private final com.example.pmo.PMORepository pmoRepository;
 
-    public SecurityService(UserRepository userRepository) {
+    public SecurityService(UserRepository userRepository,
+            com.example.portfolio.PortfolioRepository portfolioRepository,
+            com.example.program.ProgramRepository programRepository,
+            com.example.project.ProjectRepository projectRepository,
+            com.example.pmo.PMORepository pmoRepository) {
         this.userRepository = userRepository;
+        this.portfolioRepository = portfolioRepository;
+        this.programRepository = programRepository;
+        this.projectRepository = projectRepository;
+        this.pmoRepository = pmoRepository;
     }
 
     /**
@@ -33,7 +45,16 @@ public class SecurityService {
     }
 
     /**
-     * Checks if the current user has ADMIN role
+     * Checks if the current user has SYSTEM_ADMIN authority (Bypass)
+     */
+    public boolean isSystemAdmin() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth != null
+                && auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_SYSTEM_ADMIN"));
+    }
+
+    /**
+     * Checks if the current user has ADMIN role (Business Admin)
      */
     public boolean isAdmin() {
         User currentUser = getCurrentUser();
@@ -72,6 +93,10 @@ public class SecurityService {
      * - Cannot delete any admin
      */
     public boolean canDeleteUser(Long userId) {
+        if (isSystemAdmin()) {
+            return true;
+        }
+
         User currentUser = getCurrentUser();
         if (currentUser == null) {
             return false;
@@ -107,5 +132,37 @@ public class SecurityService {
      */
     public boolean canModifyManagerOrAdmin() {
         return isAdmin();
+    }
+
+    public boolean isPmoDirector() {
+        User currentUser = getCurrentUser();
+        return currentUser != null && pmoRepository.countByDirectorId(currentUser.getId()) > 0;
+    }
+
+    public boolean isPortfolioDirector(Long portfolioId) {
+        User currentUser = getCurrentUser();
+        if (currentUser == null || portfolioId == null)
+            return false;
+        return portfolioRepository.findById(portfolioId)
+                .map(p -> p.getDirector() != null && p.getDirector().getId().equals(currentUser.getId()))
+                .orElse(false);
+    }
+
+    public boolean isProgramDirector(Long programId) {
+        User currentUser = getCurrentUser();
+        if (currentUser == null || programId == null)
+            return false;
+        return programRepository.findById(programId)
+                .map(p -> p.getDirector() != null && p.getDirector().getId().equals(currentUser.getId()))
+                .orElse(false);
+    }
+
+    public boolean isProjectDirector(Long projectId) {
+        User currentUser = getCurrentUser();
+        if (currentUser == null || projectId == null)
+            return false;
+        return projectRepository.findById(projectId)
+                .map(p -> (p.getDirector() != null && p.getDirector().getId().equals(currentUser.getId())))
+                .orElse(false);
     }
 }
