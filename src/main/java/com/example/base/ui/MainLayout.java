@@ -25,7 +25,7 @@ import com.vaadin.flow.theme.lumo.LumoUtility.Margin;
 import com.vaadin.flow.theme.lumo.LumoUtility.Padding;
 import com.vaadin.flow.theme.lumo.LumoUtility.TextColor;
 
-public final class MainLayout extends AppLayout implements RouterLayout { // Implementamos RouterLayout
+public class MainLayout extends AppLayout implements RouterLayout { // Implementamos RouterLayout
 
     // 1. ÁREA DE CONTENIDO
     // Este Div será el contenedor de tus vistas (PortfolioView, etc.)
@@ -36,7 +36,7 @@ public final class MainLayout extends AppLayout implements RouterLayout { // Imp
     private final com.example.user.UserService userService;
 
     // Constructor del Esqueleto
-    MainLayout(com.vaadin.flow.spring.security.AuthenticationContext authContext,
+    public MainLayout(com.vaadin.flow.spring.security.AuthenticationContext authContext,
             com.example.user.UserService userService) {
         this.authContext = authContext;
         this.userService = userService;
