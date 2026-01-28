@@ -20,7 +20,6 @@ import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
-import com.vaadin.flow.router.Menu;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 
@@ -28,7 +27,6 @@ import jakarta.annotation.security.RolesAllowed;
 
 @Route(value = "programas", layout = MainLayout.class)
 @PageTitle("Programas")
-@Menu(order = 4, icon = "vaadin:archives", title = "Programas")
 @RolesAllowed({ "ADMIN", "MANAGER" })
 public class ProgramView extends VerticalLayout {
 
@@ -53,16 +51,33 @@ public class ProgramView extends VerticalLayout {
     private void configureGrid() {
         grid.setSizeFull();
         grid.removeAllColumns();
-        grid.addColumn(Program::getId).setHeader("ID");
+        grid.addColumn(Program::getId).setHeader("ID").setWidth("100px");
         grid.addColumn(Program::getName).setHeader("Nombre");
         grid.addColumn(program -> program.getPortfolio() != null ? program.getPortfolio().getName() : "Sin Portafolio")
                 .setHeader("Portafolio");
         grid.addColumn(program -> program.getDirector() != null ? program.getDirector().getName() : "Sin Director")
                 .setHeader("Director");
 
-        grid.asSingleSelect().addValueChangeListener(event -> {
-            if (event.getValue() != null) {
-                openProgramDialog(event.getValue());
+        // Columna de Editar
+        grid.addComponentColumn(program -> {
+            Button editButton = new Button("Editar", e -> openProgramDialog(program));
+            editButton.addThemeVariants(com.vaadin.flow.component.button.ButtonVariant.LUMO_SMALL,
+                    com.vaadin.flow.component.button.ButtonVariant.LUMO_PRIMARY);
+            return editButton;
+        }).setHeader("").setWidth("80px").setFlexGrow(0);
+
+        // Columna de Borrar
+        grid.addComponentColumn(program -> {
+            Button deleteButton = new Button("Borrar", e -> deleteProgram(program));
+            deleteButton.addThemeVariants(com.vaadin.flow.component.button.ButtonVariant.LUMO_SMALL,
+                    com.vaadin.flow.component.button.ButtonVariant.LUMO_ERROR);
+            return deleteButton;
+        }).setHeader("").setWidth("80px").setFlexGrow(0);
+
+        // Navigate to detail view on row click
+        grid.addItemClickListener(event -> {
+            if (event.getItem() != null) {
+                com.vaadin.flow.component.UI.getCurrent().navigate("program/" + event.getItem().getId());
             }
         });
     }
@@ -72,6 +87,33 @@ public class ProgramView extends VerticalLayout {
         addProgramButton.addClickListener(e -> openProgramDialog(null));
 
         return new HorizontalLayout(addProgramButton);
+    }
+
+    private void deleteProgram(Program program) {
+        if (programService.hasProjects(program.getId())) {
+            Dialog confirmDialog = new Dialog();
+            confirmDialog.setHeaderTitle("Eliminar Programa");
+            confirmDialog.add(
+                    "Este programa tiene proyectos asociados. ¿Desea eliminarlo junto con todos sus proyectos?");
+
+            Button confirmDeleteButton = new Button("Eliminar Todo", event -> {
+                programService.deleteWithCascade(program.getId());
+                updateList();
+                confirmDialog.close();
+                Notification.show("Programa y proyectos eliminados exitosamente");
+            });
+            confirmDeleteButton.getStyle().set("color", "red");
+
+            Button cancelDeleteButton = new Button("Cancelar", event -> confirmDialog.close());
+
+            confirmDialog.getFooter().add(cancelDeleteButton);
+            confirmDialog.getFooter().add(confirmDeleteButton);
+            confirmDialog.open();
+        } else {
+            programService.delete(program.getId());
+            updateList();
+            Notification.show("Programa eliminado exitosamente");
+        }
     }
 
     private void openProgramDialog(Program program) {
@@ -118,51 +160,10 @@ public class ProgramView extends VerticalLayout {
 
         Button cancelButton = new Button("Cancelar", e -> dialog.close());
 
-        Button deleteButton = new Button("Eliminar", e -> {
-            if (program != null) {
-                if (programService.hasProjects(program.getId())) {
-                    Dialog confirmDialog = new Dialog();
-                    confirmDialog.setHeaderTitle("Eliminar Programa");
-                    confirmDialog.add(
-                            "Este programa tiene proyectos asociados. ¿Desea eliminarlo junto con todos sus proyectos?");
-
-                    Button confirmDeleteButton = new Button("Eliminar Todo", event -> {
-                        programService.deleteWithCascade(program.getId());
-                        updateList();
-                        dialog.close();
-                        confirmDialog.close();
-                        Notification.show("Programa y proyectos eliminados exitosamente");
-                    });
-                    confirmDeleteButton.getStyle().set("color", "red");
-
-                    Button cancelDeleteButton = new Button("Cancelar", event -> confirmDialog.close());
-
-                    confirmDialog.getFooter().add(cancelDeleteButton);
-                    confirmDialog.getFooter().add(confirmDeleteButton);
-                    confirmDialog.open();
-                } else {
-                    programService.delete(program.getId());
-                    updateList();
-                    dialog.close();
-                    Notification.show("Programa eliminado exitosamente");
-                }
-            }
-        });
-        deleteButton.getStyle().set("color", "red");
-
         dialog.getFooter().add(cancelButton);
-        if (program != null) {
-            dialog.getFooter().add(deleteButton);
-        }
         dialog.getFooter().add(saveButton);
 
         dialog.open();
-
-        dialog.addOpenedChangeListener(e -> {
-            if (!e.isOpened()) {
-                grid.asSingleSelect().clear();
-            }
-        });
     }
 
     private void updateList() {

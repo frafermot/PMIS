@@ -23,7 +23,7 @@ import jakarta.annotation.security.RolesAllowed;
 
 @Route(value = "gestores", layout = MainLayout.class)
 @PageTitle("Registro de Gestores")
-@Menu(order = 0, icon = "vaadin:users", title = "Registro de Gestores")
+@Menu(order = 1, icon = "vaadin:users", title = "Registro de Gestores")
 @RolesAllowed("ADMIN")
 public class GestorView extends VerticalLayout {
 

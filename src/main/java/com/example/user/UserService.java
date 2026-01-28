@@ -72,8 +72,31 @@ public class UserService {
         return userRepository.findAllByRoleIn(roles);
     }
 
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public List<User> findAvailableForProject(Long projectId) {
+        return userRepository.findAllWithProject().stream()
+                .filter(user -> user.getProject() == null ||
+                        (projectId != null && !user.getProject().getId().equals(projectId)))
+                .toList();
+    }
+
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public List<User> findByProject(Long projectId) {
+        if (projectId == null) {
+            return List.of();
+        }
+        return userRepository.findAllWithProject().stream()
+                .filter(user -> user.getProject() != null && user.getProject().getId().equals(projectId))
+                .toList();
+    }
+
     public User findByUvus(String uvus) {
         return userRepository.findByUvus(uvus);
+    }
+
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public User findByUvusWithProject(String uvus) {
+        return userRepository.findByUvusWithProject(uvus);
     }
 
     public boolean hasAssignedEntities(Long id) {

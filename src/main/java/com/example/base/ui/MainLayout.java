@@ -123,11 +123,41 @@ public final class MainLayout extends AppLayout implements RouterLayout { // Imp
         return header;
     }
 
-    // Menú Lateral (Sidebar) - Sin cambios
+    // Menú Lateral (Sidebar) - Filtrado por rol
     private SideNav createSideNav() {
         var nav = new SideNav();
         nav.addClassNames(Margin.Horizontal.MEDIUM);
-        MenuConfiguration.getMenuEntries().forEach(entry -> nav.addItem(createSideNavItem(entry)));
+
+        // Get current user role
+        authContext.getAuthenticatedUser(org.springframework.security.core.userdetails.UserDetails.class)
+                .ifPresent(userDetails -> {
+                    com.example.user.User currentUser = userService.findByUvus(userDetails.getUsername());
+                    if (currentUser != null) {
+                        com.example.user.Role userRole = currentUser.getRole();
+
+                        // Add menu entries based on role
+                        MenuConfiguration.getMenuEntries().forEach(entry -> {
+                            String title = entry.title();
+
+                            // Filter menu items based on role
+                            boolean shouldShow = true;
+
+                            if (title.equals("Registro de Gestores")) {
+                                // Only ADMIN can see Gestores
+                                shouldShow = userRole == com.example.user.Role.ADMIN;
+                            } else if (title.equals("Usuarios")) {
+                                // ADMIN and MANAGER can see Usuarios
+                                shouldShow = userRole == com.example.user.Role.ADMIN
+                                        || userRole == com.example.user.Role.MANAGER;
+                            }
+
+                            if (shouldShow) {
+                                nav.addItem(createSideNavItem(entry));
+                            }
+                        });
+                    }
+                });
+
         return nav;
     }
 

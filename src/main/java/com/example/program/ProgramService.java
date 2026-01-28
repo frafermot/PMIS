@@ -28,7 +28,7 @@ public class ProgramService {
     }
 
     public Program get(Long id) {
-        return programRepository.findById(id).orElse(null);
+        return programRepository.findByIdWithRelations(id).orElse(null);
     }
 
     public void delete(Long id) {
@@ -38,6 +38,10 @@ public class ProgramService {
     public List<Program> getAll() {
         List<Program> programs = programRepository.findAllWithRelations();
         return programs;
+    }
+
+    public List<Program> getByPortfolioId(Long portfolioId) {
+        return programRepository.findAllByPortfolioId(portfolioId);
     }
 
     public boolean hasProjects(Long id) {
