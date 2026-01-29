@@ -2,6 +2,7 @@ package com.example.project;
 
 import com.example.user.User;
 import com.example.program.Program;
+import com.example.communication.Ccc;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
@@ -32,6 +33,9 @@ public class Project {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sponsor_id")
     private User sponsor;
+
+    @OneToOne(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Ccc ccc;
 
     public Long getId() {
         return id;
@@ -71,6 +75,17 @@ public class Project {
 
     public void setSponsor(User sponsor) {
         this.sponsor = sponsor;
+    }
+
+    public Ccc getCcc() {
+        return ccc;
+    }
+
+    public void setCcc(Ccc ccc) {
+        this.ccc = ccc;
+        if (ccc != null && ccc.getProject() != this) {
+            ccc.setProject(this);
+        }
     }
 
     @Override

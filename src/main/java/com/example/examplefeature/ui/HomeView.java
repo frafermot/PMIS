@@ -3,7 +3,6 @@ package com.example.examplefeature.ui;
 import com.example.base.ui.MainLayout;
 import com.example.portfolio.PortfolioRepository;
 import com.example.program.ProgramRepository;
-import com.example.project.Project;
 import com.example.project.ProjectService;
 import com.example.user.Role;
 import com.example.user.User;
@@ -11,7 +10,7 @@ import com.example.user.UserService;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
-import com.vaadin.flow.component.grid.Grid;
+
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H1;
 import com.vaadin.flow.component.html.H2;
@@ -25,8 +24,6 @@ import com.vaadin.flow.router.Route;
 import com.vaadin.flow.router.RouteAlias;
 import com.vaadin.flow.spring.security.AuthenticationContext;
 import jakarta.annotation.security.PermitAll;
-
-import java.util.List;
 
 @Route(value = "", layout = MainLayout.class)
 @RouteAlias(value = "inicio", layout = MainLayout.class)
@@ -195,28 +192,43 @@ public class HomeView extends VerticalLayout {
         }
 
         private void showUserView(User currentUser) {
-                add(new H2("Mis Proyectos"));
+                add(new H2("Panel de Gestión"));
 
-                if (currentUser.getProject() != null) {
-                        Grid<Project> projectGrid = new Grid<>(Project.class, false);
-                        projectGrid.addColumn(Project::getName).setHeader("Proyecto");
-                        projectGrid.addColumn(
-                                        project -> project.getProgram() != null ? project.getProgram().getName()
-                                                        : "Sin Programa")
-                                        .setHeader("Programa");
-                        projectGrid.addColumn(
-                                        project -> project.getDirector() != null ? project.getDirector().getName()
-                                                        : "Sin Director")
-                                        .setHeader("Director");
+                // Container for cards with CSS Grid layout
+                Div cardsContainer = new Div();
+                cardsContainer.addClassName("management-cards-container");
+                cardsContainer.getStyle()
+                                .set("display", "grid")
+                                .set("grid-template-columns", "repeat(3, 1fr)")
+                                .set("gap", "20px")
+                                .set("margin-top", "20px")
+                                .set("width", "100%");
 
-                        projectGrid.setItems(List.of(currentUser.getProject()));
-                        projectGrid.setMaxHeight("300px");
+                // Add CSS to adjust grid based on viewport width
+                getElement().executeJs(
+                                "const style = document.createElement('style');" +
+                                                "style.textContent = `" +
+                                                "  @media (max-width: 1400px) {" +
+                                                "    .management-cards-container {" +
+                                                "      grid-template-columns: repeat(2, 1fr) !important;" +
+                                                "    }" +
+                                                "  }" +
+                                                "  @media (min-width: 1401px) {" +
+                                                "    .management-cards-container {" +
+                                                "      grid-template-columns: repeat(3, 1fr) !important;" +
+                                                "    }" +
+                                                "  }" +
+                                                "`;" +
+                                                "document.head.appendChild(style);");
 
-                        add(projectGrid);
-                } else {
-                        Paragraph noProjects = new Paragraph("No tienes proyectos asignados actualmente.");
-                        noProjects.getStyle().set("color", "var(--lumo-secondary-text-color)");
-                        add(noProjects);
-                }
+                // Mis Proyectos card
+                cardsContainer.add(createManagementCard(
+                                VaadinIcon.BRIEFCASE,
+                                "Mis Proyectos",
+                                "Accede a los proyectos de los cuales eres parte",
+                                "Ver Mis Proyectos",
+                                "mis-proyectos"));
+
+                add(cardsContainer);
         }
 }
