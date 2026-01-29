@@ -2,6 +2,8 @@ package com.example.examplefeature.ui;
 
 import com.example.base.ui.MainLayout;
 import com.example.program.Program;
+import com.example.communication.Ccc;
+import com.example.communication.CccService;
 import com.example.project.Project;
 import com.example.project.ProjectService;
 import com.example.security.SecurityService;
@@ -17,10 +19,13 @@ import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.H3;
 import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.orderedlayout.FlexComponent.Alignment;
+import com.vaadin.flow.component.orderedlayout.FlexComponent.JustifyContentMode;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.component.textfield.TextField;
+import java.util.Optional;
 import com.vaadin.flow.router.BeforeEvent;
 import com.vaadin.flow.router.HasUrlParameter;
 import com.vaadin.flow.router.PageTitle;
@@ -38,6 +43,7 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
     private final UserService userService;
     private final SecurityService securityService;
     private final UserRepository userRepository;
+    private final CccService cccService;
     private Project currentProject;
     private final Grid<User> userGrid = new Grid<>(User.class, false);
 
@@ -52,11 +58,12 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
     private String originalProgramName;
 
     public ProjectDetailView(ProjectService projectService, UserService userService,
-            UserRepository userRepository, SecurityService securityService) {
+            UserRepository userRepository, SecurityService securityService, CccService cccService) {
         this.projectService = projectService;
         this.userService = userService;
         this.userRepository = userRepository;
         this.securityService = securityService;
+        this.cccService = cccService;
 
         setSizeFull();
         setPadding(true);
@@ -124,7 +131,27 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         add(breadcrumb);
 
         // Project Info Section
-        add(new H2("Información del Proyecto"));
+        // Project Info Section
+        HorizontalLayout headerLayout = new HorizontalLayout();
+        headerLayout.setWidthFull();
+        headerLayout.setAlignItems(Alignment.CENTER);
+        headerLayout.setJustifyContentMode(JustifyContentMode.BETWEEN);
+
+        H2 title = new H2("Información del Proyecto");
+        headerLayout.add(title);
+
+        // Add CCC Button for Directors/Sponsors
+        if (securityService.isProjectDirectorOrSponsor(currentProject.getId())) {
+            Button cccButton = new Button("Control de Comité de Cambios", e -> {
+                Optional<Ccc> cccOptional = cccService.getCccByProject(currentProject.getId());
+                Ccc ccc = cccOptional.orElseGet(() -> cccService.createCccForProject(currentProject));
+                UI.getCurrent().navigate("ccc/" + ccc.getId());
+            });
+            cccButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+            headerLayout.add(cccButton);
+        }
+
+        add(headerLayout);
 
         nameField = new TextField("Nombre");
         nameField.setValue(currentProject.getName());

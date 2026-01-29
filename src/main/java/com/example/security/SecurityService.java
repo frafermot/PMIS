@@ -165,4 +165,17 @@ public class SecurityService {
                 .map(p -> (p.getDirector() != null && p.getDirector().getId().equals(currentUser.getId())))
                 .orElse(false);
     }
+
+    public boolean isProjectSponsor(Long projectId) {
+        User currentUser = getCurrentUser();
+        if (currentUser == null || projectId == null)
+            return false;
+        return projectRepository.findById(projectId)
+                .map(p -> (p.getSponsor() != null && p.getSponsor().getId().equals(currentUser.getId())))
+                .orElse(false);
+    }
+
+    public boolean isProjectDirectorOrSponsor(Long projectId) {
+        return isProjectDirector(projectId) || isProjectSponsor(projectId);
+    }
 }
