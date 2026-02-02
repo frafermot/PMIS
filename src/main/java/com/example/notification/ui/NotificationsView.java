@@ -54,6 +54,7 @@ public class NotificationsView extends VerticalLayout {
                 Button markReadBtn = new Button("Marcar como leída", e -> {
                     notificationService.markAsRead(notification.getId());
                     refreshGrid();
+                    updateMainLayoutBadge();
                 });
                 markReadBtn.addThemeVariants(ButtonVariant.LUMO_SMALL);
                 return markReadBtn;
@@ -69,10 +70,36 @@ public class NotificationsView extends VerticalLayout {
             if (notification.getLink() != null && !notification.getLink().isEmpty()) {
                 if (!notification.isRead()) {
                     notificationService.markAsRead(notification.getId());
+                    updateMainLayoutBadge();
                 }
                 getUI().ifPresent(ui -> ui.navigate(notification.getLink()));
             }
         });
+    }
+
+    private void updateMainLayoutBadge() {
+        getUI().ifPresent(ui -> {
+            com.example.base.ui.MainLayout mainLayout = findMainLayout(ui);
+            if (mainLayout != null) {
+                mainLayout.updateNotificationBadge();
+            }
+        });
+    }
+
+    private com.example.base.ui.MainLayout findMainLayout(com.vaadin.flow.component.UI ui) {
+        // Since this view is nested in MainLayout, we can try to find it by traversing
+        // up or querying children of UI if it's the root.
+        // However, Route layout is not strictly a parent in the component tree in all
+        // cases, but typically it is.
+        // Let's try traversing up from this view.
+        java.util.Optional<com.vaadin.flow.component.Component> parent = getParent();
+        while (parent.isPresent()) {
+            if (parent.get() instanceof com.example.base.ui.MainLayout) {
+                return (com.example.base.ui.MainLayout) parent.get();
+            }
+            parent = parent.get().getParent();
+        }
+        return null;
     }
 
     private void refreshGrid() {

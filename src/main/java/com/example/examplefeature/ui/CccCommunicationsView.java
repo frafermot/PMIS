@@ -125,7 +125,7 @@ public class CccCommunicationsView extends VerticalLayout implements HasUrlParam
         TextField subjectField = new TextField("Asunto");
         ComboBox<CommunicationType> typeComboBox = new ComboBox<>("Tipo");
         typeComboBox.setItems(CommunicationType.values());
-        typeComboBox.setItemLabelGenerator(CommunicationType::name);
+        typeComboBox.setItemLabelGenerator(CommunicationType::getLabel);
 
         dialogLayout.add(subjectField, typeComboBox);
         dialog.add(dialogLayout);

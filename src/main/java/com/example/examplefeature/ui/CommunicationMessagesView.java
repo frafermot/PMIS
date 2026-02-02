@@ -131,6 +131,19 @@ public class CommunicationMessagesView extends VerticalLayout implements HasUrlP
         subject.getStyle().set("margin", "0");
         subjectLayout.add(subject);
 
+        // Right side info (Type + Status)
+        VerticalLayout rightInfoLayout = new VerticalLayout();
+        rightInfoLayout.setSpacing(false);
+        rightInfoLayout.setPadding(false);
+        rightInfoLayout.setAlignItems(Alignment.END);
+        rightInfoLayout.setWidth("auto"); // Don't take full width
+
+        // Communication Type
+        Span typeSpan = new Span(currentCommunication.getType().getLabel());
+        typeSpan.getStyle().set("font-size", "0.9em");
+        typeSpan.getStyle().set("color", "var(--lumo-secondary-text-color)");
+        rightInfoLayout.add(typeSpan);
+
         // Check if current user is Sponsor
         if (securityService.isProjectSponsor(projectId)) {
             Select<CommunicationStatus> statusSelect = new Select<>();
@@ -152,14 +165,27 @@ public class CommunicationMessagesView extends VerticalLayout implements HasUrlP
                     }
                 }
             });
-            subjectLayout.add(statusSelect);
+            rightInfoLayout.add(statusSelect);
         } else {
-            // For non-sponsors, just show the status as text or badge if needed,
-            // but request was specific about the change option.
-            // Currently just showing subject as per original code, but could add status
-            // text.
+            // For non-sponsors, show the status as text
+            Span statusSpan = new Span(currentCommunication.getStatus().toString()); // Enum toString should strictly be
+                                                                                     // used if localized, but currently
+                                                                                     // Status doesn't have localized
+                                                                                     // toString?
+            // Wait, CommunicationStatus DOES NOT have localized toString yet (I only did it
+            // for CommunicationType).
+            // I should probably fix that or just use name(). The previous request was for
+            // "solicitud de cambio", "incidencia", "reunion".
+            // Status translation was not requested yet, but "Abierto", "En Progreso" etc
+            // are in comments in the file.
+            // I'll just use name() or toString() for now. CommunicationStatus.java showed
+            // comments like // Abierto.
+            // I'll stick to displaying it.
+            statusSpan.getStyle().set("font-weight", "bold");
+            rightInfoLayout.add(statusSpan);
         }
 
+        subjectLayout.add(rightInfoLayout);
         headerLayout.add(subjectLayout);
         add(headerLayout);
 
