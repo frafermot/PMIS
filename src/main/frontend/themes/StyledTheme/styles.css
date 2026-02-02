@@ -9,16 +9,17 @@ html {
     /* --- TIPOGRAFÍA MODERNA --- */
     /* ------------------------------ */
     --lumo-font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-    
+
     /* ------------------------------ */
     /* --- COLORES PASTEL FORMALES --- */
     /* ------------------------------ */
-    
+
     /* Color Primario (ej. un azul pastel) */
     --lumo-primary-color: hsl(200, 70%, 65%);
     --lumo-primary-color-50pct: hsla(200, 70%, 65%, 0.5);
     --lumo-primary-color-10pct: hsla(200, 70%, 65%, 0.1);
-    --lumo-primary-text-color: hsl(200, 100%, 20%); /* Texto oscuro para contraste */
+    --lumo-primary-text-color: hsl(200, 100%, 20%);
+    /* Texto oscuro para contraste */
 
     /* Colores de "Error" (ej. un rojo pastel) */
     --lumo-error-color: hsl(0, 70%, 70%);
@@ -27,16 +28,80 @@ html {
     /* Colores de "Éxito" (ej. un verde pastel) */
     --lumo-success-color: hsl(145, 60%, 60%);
     --lumo-success-text-color: hsl(145, 80%, 20%);
-    
+
     /* Colores base (tonos neutros) */
-    --lumo-base-color: #FFFFFF; /* Fondo principal blanco limpio */
+    --lumo-base-color: #FFFFFF;
+    /* Fondo principal blanco limpio */
     --lumo-shade-5pct: hsla(214, 60%, 25%, 0.05);
     --lumo-shade-10pct: hsla(214, 55%, 25%, 0.1);
-    
+
     /* ------------------------------ */
     /* --- REDONDEZ GLOBAL (Opcional) --- */
     /* ------------------------------ */
     /* Puedes definir un radio de borde global aquí */
-    --lumo-border-radius-m: 1em; /* Radio medio */
-    --lumo-border-radius-l: 1.5em; /* Radio grande */
+    --lumo-border-radius-m: 1em;
+    /* Radio medio */
+    --lumo-border-radius-l: 1.5em;
+    /* Radio grande */
+
+    /* ------------------------------ */
+    /* --- CHAT STYLES --- */
+    /* ------------------------------ */
+    --chat-bg-color: #f5f5f5;
+    /* Light Gray Background */
+    --chat-bubble-me: #e3f2fd;
+    /* Light Blue for me */
+    --chat-bubble-other: #ffffff;
+    /* White for others (or could be a different pale blue if strictly requested, but white provides good contrast) */
+}
+
+.chat-container {
+    background-color: var(--chat-bg-color);
+    /* No background image */
+}
+
+.chat-bubble {
+    padding: 10px 14px;
+    /* Slightly larger padding */
+    border-radius: 12px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    max-width: 70%;
+    position: relative;
+    font-size: 14px;
+    line-height: 1.4;
+    color: var(--lumo-body-text-color);
+}
+
+.chat-bubble.me {
+    background-color: var(--chat-bubble-me);
+    border-bottom-right-radius: 2px;
+    /* Style choice */
+    margin-left: auto;
+}
+
+.chat-bubble.other {
+    background-color: var(--chat-bubble-other);
+    border-bottom-left-radius: 2px;
+    margin-right: auto;
+}
+
+/* Header inside bubble containing Name and Date */
+.chat-bubble-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 4px;
+    font-size: 0.85em;
+    color: var(--lumo-secondary-text-color);
+    gap: 8px;
+}
+
+.chat-sender-name {
+    font-weight: 600;
+    color: var(--lumo-primary-text-color);
+}
+
+.chat-timestamp {
+    font-size: 0.75em;
+    opacity: 0.8;
 }

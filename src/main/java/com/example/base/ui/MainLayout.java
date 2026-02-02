@@ -34,12 +34,15 @@ public class MainLayout extends AppLayout implements RouterLayout { // Implement
     // Constructor del Esqueleto
     private final com.vaadin.flow.spring.security.AuthenticationContext authContext;
     private final com.example.user.UserService userService;
+    private final com.example.notification.NotificationService notificationService;
 
     // Constructor del Esqueleto
     public MainLayout(com.vaadin.flow.spring.security.AuthenticationContext authContext,
-            com.example.user.UserService userService) {
+            com.example.user.UserService userService,
+            com.example.notification.NotificationService notificationService) {
         this.authContext = authContext;
         this.userService = userService;
+        this.notificationService = notificationService;
 
         setPrimarySection(Section.DRAWER);
         setDrawerOpened(true); // Ensure drawer is open by default on login
@@ -123,6 +126,29 @@ public class MainLayout extends AppLayout implements RouterLayout { // Implement
         return header;
     }
 
+    private SideNavItem notificationsItem;
+
+    public void updateNotificationBadge() {
+        if (notificationsItem == null)
+            return;
+
+        authContext.getAuthenticatedUser(org.springframework.security.core.userdetails.UserDetails.class)
+                .ifPresent(userDetails -> {
+                    com.example.user.User currentUser = userService.findByUvus(userDetails.getUsername());
+                    if (currentUser != null) {
+                        long unreadCount = notificationService.getUnreadCount(currentUser.getId());
+                        if (unreadCount > 0) {
+                            Span badge = new Span(String.valueOf(unreadCount));
+                            badge.getElement().getThemeList().add("badge error pill small");
+                            badge.getStyle().set("margin-left", "auto");
+                            notificationsItem.setSuffixComponent(badge);
+                        } else {
+                            notificationsItem.setSuffixComponent(null);
+                        }
+                    }
+                });
+    }
+
     // Menú Lateral (Sidebar) - Filtrado por rol
     private SideNav createSideNav() {
         var nav = new SideNav();
@@ -155,6 +181,13 @@ public class MainLayout extends AppLayout implements RouterLayout { // Implement
                                 nav.addItem(createSideNavItem(entry));
                             }
                         });
+
+                        // Add Notifications Link for everyone
+                        notificationsItem = new SideNavItem("Notificaciones", "notifications",
+                                VaadinIcon.BELL.create());
+                        updateNotificationBadge(); // Initial population
+
+                        nav.addItem(notificationsItem);
                     }
                 });
 

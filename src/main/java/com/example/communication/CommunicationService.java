@@ -38,7 +38,9 @@ public class CommunicationService {
         communication.setCreatedBy(createdBy);
         communication.setStatus(CommunicationStatus.OPEN);
 
-        return communicationRepository.save(communication);
+        Communication savedCommunication = communicationRepository.save(communication);
+
+        return savedCommunication;
     }
 
     @Transactional(readOnly = true)
@@ -56,9 +58,9 @@ public class CommunicationService {
                 .orElseThrow(() -> new IllegalArgumentException("Communication not found with id: " + communicationId));
 
         Long projectId = communication.getCcc().getProject().getId();
-        if (!securityService.isProjectDirectorOrSponsor(projectId)) {
+        if (!securityService.isProjectSponsor(projectId)) {
             throw new org.springframework.security.access.AccessDeniedException(
-                    "Only Project Director or Sponsor can update status");
+                    "Only Project Sponsor can update status");
         }
 
         communication.setStatus(status);
