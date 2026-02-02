@@ -13,10 +13,15 @@ import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H3;
 import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.notification.NotificationVariant;
+import com.vaadin.flow.component.orderedlayout.FlexLayout;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.Scroller;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.select.Select;
+import com.example.communication.CommunicationStatus;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.router.BeforeEvent;
 import com.vaadin.flow.router.HasUrlParameter;
@@ -29,6 +34,7 @@ import java.util.Optional;
 import com.vaadin.flow.component.KeyModifier;
 import com.vaadin.flow.component.textfield.TextArea;
 import com.vaadin.flow.component.orderedlayout.FlexComponent.Alignment;
+import com.vaadin.flow.component.orderedlayout.FlexComponent.JustifyContentMode;
 
 @Route(value = "ccc/communication", layout = MainLayout.class)
 @PageTitle("CCC - Mensajes")
@@ -114,7 +120,47 @@ public class CommunicationMessagesView extends VerticalLayout implements HasUrlP
         breadcrumb.add(new Span(" > " + currentCommunication.getSubject()));
 
         headerLayout.add(breadcrumb);
-        headerLayout.add(new H3(currentCommunication.getSubject()));
+
+        // Subject + Status (Right aligned)
+        HorizontalLayout subjectLayout = new HorizontalLayout();
+        subjectLayout.setWidthFull();
+        subjectLayout.setAlignItems(Alignment.CENTER);
+        subjectLayout.setJustifyContentMode(JustifyContentMode.BETWEEN);
+
+        H3 subject = new H3(currentCommunication.getSubject());
+        subject.getStyle().set("margin", "0");
+        subjectLayout.add(subject);
+
+        // Check if current user is Sponsor
+        if (securityService.isProjectSponsor(projectId)) {
+            Select<CommunicationStatus> statusSelect = new Select<>();
+            statusSelect.setItems(CommunicationStatus.values());
+            statusSelect.setValue(currentCommunication.getStatus());
+            // statusSelect.setLabel("Estado"); // Optional label
+            statusSelect.setWidth("150px");
+            statusSelect.addValueChangeListener(event -> {
+                if (event.isFromClient()) {
+                    try {
+                        communicationService.updateStatus(currentCommunication.getId(), event.getValue());
+                        currentCommunication.setStatus(event.getValue()); // Update local state
+                        Notification.show("Estado actualizado a " + event.getValue())
+                                .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
+                    } catch (Exception e) {
+                        statusSelect.setValue(event.getOldValue()); // Revert
+                        Notification.show("Error al actualizar estado: " + e.getMessage())
+                                .addThemeVariants(NotificationVariant.LUMO_ERROR);
+                    }
+                }
+            });
+            subjectLayout.add(statusSelect);
+        } else {
+            // For non-sponsors, just show the status as text or badge if needed,
+            // but request was specific about the change option.
+            // Currently just showing subject as per original code, but could add status
+            // text.
+        }
+
+        headerLayout.add(subjectLayout);
         add(headerLayout);
 
         // 2. Message List Container (Middle, Grows, Scrollable)
