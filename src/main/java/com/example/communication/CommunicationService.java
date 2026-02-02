@@ -38,7 +38,9 @@ public class CommunicationService {
         communication.setCreatedBy(createdBy);
         communication.setStatus(CommunicationStatus.OPEN);
 
-        return communicationRepository.save(communication);
+        Communication savedCommunication = communicationRepository.save(communication);
+
+        return savedCommunication;
     }
 
     @Transactional(readOnly = true)

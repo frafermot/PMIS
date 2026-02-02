@@ -158,6 +158,9 @@ public class MainLayout extends AppLayout implements RouterLayout { // Implement
                     }
                 });
 
+        // Add Notifications Link for everyone
+        nav.addItem(new SideNavItem("Notificaciones", "notifications", VaadinIcon.BELL.create()));
+
         return nav;
     }
 

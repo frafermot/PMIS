@@ -50,8 +50,13 @@ public class CommunicationMessagesView extends VerticalLayout implements HasUrlP
         this.securityService = securityService;
 
         setSizeFull();
-        setPadding(true);
-        setSpacing(true);
+        setPadding(false);
+        setSpacing(false);
+        // Force the view to fit within the viewport minus header/footer approximations
+        // This ensures the flex layout (with fixed bottom input) works as expected
+        // without body scrolling
+        setHeight("calc(100vh - 120px)");
+        getStyle().set("overflow", "hidden");
     }
 
     @Override
@@ -72,6 +77,18 @@ public class CommunicationMessagesView extends VerticalLayout implements HasUrlP
     }
 
     private void buildView() {
+        addClassName("chat-view"); // Good practice to add a class to the view itself
+
+        // Ensure relative positioning for absolute children
+        getStyle().set("position", "relative");
+
+        // 1. Header (Top, Fixed height)
+        VerticalLayout headerLayout = new VerticalLayout();
+        headerLayout.setPadding(true);
+        headerLayout.setSpacing(true);
+        headerLayout.setWidthFull();
+        headerLayout.setFlexGrow(0, headerLayout); // Don't grow
+
         // Breadcrumb
         HorizontalLayout breadcrumb = new HorizontalLayout();
         breadcrumb.setSpacing(false);
@@ -96,38 +113,55 @@ public class CommunicationMessagesView extends VerticalLayout implements HasUrlP
         breadcrumb.add(backToCccButton);
         breadcrumb.add(new Span(" > " + currentCommunication.getSubject()));
 
-        add(breadcrumb);
+        headerLayout.add(breadcrumb);
+        headerLayout.add(new H3(currentCommunication.getSubject()));
+        add(headerLayout);
 
-        add(new H3(currentCommunication.getSubject()));
-
-        // Message List
+        // 2. Message List Container (Middle, Grows, Scrollable)
         messageList = new VerticalLayout();
-        messageList.setPadding(false);
+        // messageList.addClassName("chat-container"); // Moved to Scroller
+        messageList.setPadding(true);
         messageList.setSpacing(true);
+        messageList.setWidthFull();
+        // Remove min-height/height constraints here, handled by Scroller/Parent
+        // behavior
+        // Add padding at bottom so last messages aren't hidden behind fixed footer
+        messageList.getStyle().set("padding-bottom", "100px");
 
         messageScroller = new Scroller(messageList);
-        messageScroller.setSizeFull();
-        messageScroller.getStyle().set("border", "1px solid var(--lumo-contrast-10pct)");
-        messageScroller.getStyle().set("border-radius", "var(--lumo-border-radius-m)");
+        messageScroller.addClassName("chat-container"); // Apply background here to cover full height
+        messageScroller.setSizeFull(); // Takes all available space
+        messageScroller.setScrollDirection(Scroller.ScrollDirection.VERTICAL);
+        messageScroller.getStyle().set("border-top", "1px solid var(--lumo-contrast-10pct)");
+        // messageScroller.getStyle().set("border-bottom", "1px solid
+        // var(--lumo-contrast-10pct)"); // Handled by footer overlap visual
 
         add(messageScroller);
-        expand(messageScroller);
+        expand(messageScroller); // This is crucial: makes scroller take all remaining vertical space
 
-        // Input Area
+        // 3. Input Area (Bottom, Fixed height)
         HorizontalLayout inputLayout = new HorizontalLayout();
         inputLayout.setWidthFull();
-        inputLayout.setAlignItems(Alignment.END); // Align button to bottom
+        inputLayout.setPadding(true);
+        inputLayout.setAlignItems(Alignment.END);
+        inputLayout.getStyle().set("background-color", "var(--lumo-base-color)");
+        inputLayout.getStyle().set("z-index", "20"); // Ensure it stays on top/visible
+        inputLayout.getStyle().set("position", "absolute");
+        inputLayout.getStyle().set("bottom", "0");
+        inputLayout.getStyle().set("left", "0");
+        inputLayout.getStyle().set("right", "0");
+        inputLayout.getStyle().set("box-shadow", "0 -1px 4px rgba(0,0,0,0.1)");
+        // inputLayout.setMinHeight("auto"); // Let it size based on content
 
         TextArea messageInput = new TextArea();
-        messageInput.setPlaceholder("Escribe un mensaje...");
+        messageInput.setPlaceholder("Escribe un mensaje");
         messageInput.setWidthFull();
-        messageInput.setHeight("150px");
+        messageInput.setMaxHeight("150px");
+        messageInput.setMinHeight("40px"); // Reasonable default
         messageInput.setMaxLength(2000);
-        messageInput.setHelperText("Máximo 2000 caracteres");
 
         Button sendButton = new Button("Enviar", e -> sendMessage(messageInput));
         sendButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-        // Ctrl+Enter to send
         sendButton.addClickShortcut(com.vaadin.flow.component.Key.ENTER, KeyModifier.CONTROL);
 
         inputLayout.add(messageInput, sendButton);
@@ -162,28 +196,35 @@ public class CommunicationMessagesView extends VerticalLayout implements HasUrlP
 
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
-        for (Message msg : messages) {
-            Div messageContainer = new Div();
-            messageContainer.getStyle().set("background-color", "var(--lumo-contrast-5pct)");
-            messageContainer.getStyle().set("padding", "var(--lumo-space-s)");
-            messageContainer.getStyle().set("border-radius", "var(--lumo-border-radius-m)");
-            messageContainer.setWidthFull();
+        User currentUser = securityService.getCurrentUser();
 
-            Span senderName = new Span(msg.getSender().getName() + " (" + msg.getSender().getRole().name() + ")");
-            senderName.getStyle().set("font-weight", "bold");
-            senderName.getStyle().set("font-size", "0.8em");
+        for (Message msg : messages) {
+            boolean isMe = msg.getSender().getId().equals(currentUser.getId());
+
+            Div messageContainer = new Div();
+            messageContainer.addClassName("chat-bubble");
+            messageContainer.addClassName(isMe ? "me" : "other");
+
+            // Header: Name + Date
+            Div header = new Div();
+            header.addClassName("chat-bubble-header");
+
+            Span senderName = new Span(msg.getSender().getName());
+            senderName.addClassName("chat-sender-name");
 
             Span timestamp = new Span(msg.getSentAt().format(formatter));
-            timestamp.getStyle().set("color", "var(--lumo-secondary-text-color)");
-            timestamp.getStyle().set("font-size", "0.8em");
-            timestamp.getStyle().set("margin-left", "10px");
+            timestamp.addClassName("chat-timestamp");
 
-            Div header = new Div(senderName, timestamp);
+            header.add(senderName, timestamp);
 
-            Div content = new Div();
-            content.setText(msg.getContent());
+            // Content
+            Span content = new Span(msg.getContent());
+            content.getStyle().set("white-space", "pre-wrap");
+            content.getStyle().set("word-break", "break-word");
+            content.getStyle().set("display", "block"); // Ensure it takes new line
 
             messageContainer.add(header, content);
+
             messageList.add(messageContainer);
         }
 
