@@ -4,6 +4,8 @@ import com.example.base.ui.MainLayout;
 import com.example.project.Project;
 import com.example.project.ProjectService;
 import com.example.communication.CccService;
+import com.example.document.Document;
+import com.example.document.DocumentService;
 import com.example.communication.Ccc;
 import com.example.security.SecurityService;
 import com.vaadin.flow.component.UI;
@@ -32,11 +34,13 @@ public class ProjectCccView extends VerticalLayout implements HasUrlParameter<Lo
     private final CccService cccService;
     private final SecurityService securityService;
     private Project currentProject;
+    private DocumentService documentService;
 
-    public ProjectCccView(ProjectService projectService, CccService cccService, SecurityService securityService) {
+    public ProjectCccView(ProjectService projectService, CccService cccService, SecurityService securityService, DocumentService documentService) {
         this.projectService = projectService;
         this.cccService = cccService;
         this.securityService = securityService;
+        this.documentService = documentService;
 
         setSizeFull();
         setPadding(true);
@@ -138,5 +142,26 @@ public class ProjectCccView extends VerticalLayout implements HasUrlParameter<Lo
                     .set("margin-bottom", "20px");
             add(cccButton);
         }
+        // Documents Section
+        Button newDocButton = new Button("+ Nuevo Documento", e -> {
+            Document newDocument = new Document();
+            newDocument.setTitle("Nuevo Documento " + (documentService.getDocumentsByProject(currentProject.getId()).size() + 1));
+            newDocument = documentService.createOrUpdate(newDocument);
+            String url = documentService.buildUrl(newDocument);
+            UI.getCurrent().navigate(url);
+        });
+        newDocButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        add(newDocButton);
+
+        documentService.getDocumentsByProject(currentProject.getId()).forEach(
+            document -> {
+                Button docButton = new Button(document.getTitle(), e -> {
+                    String url = documentService.buildUrl(document);
+                    UI.getCurrent().navigate(url);
+                });
+                docButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+                add(docButton);
+            }
+        );
     }
 }
