@@ -12,3 +12,8 @@
 node_modules/
 src/main/frontend/generated/
 vite.generated.ts
+
+*.mv.db
+*.trace.db
+
+src/main/bundles/
