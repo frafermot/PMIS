@@ -23,6 +23,15 @@ public class SecurityConfig extends VaadinWebSecurity {
         http.authorizeHttpRequests(
                 auth -> auth.requestMatchers(new AntPathRequestMatcher("/line-awesome/**/*.svg")).permitAll());
 
+        // H2 Console - permitir acceso sin autenticación (solo para desarrollo)
+        http.authorizeHttpRequests(
+                auth -> auth.requestMatchers(new AntPathRequestMatcher("/h2-console/**")).permitAll());
+        
+        // Deshabilitar CSRF para H2 Console
+        http.csrf(csrf -> csrf.ignoringRequestMatchers(new AntPathRequestMatcher("/h2-console/**")));
+
+        http.headers(headers -> headers.frameOptions(frameOptions -> frameOptions.disable()));
+
         super.configure(http);
 
         setLoginView(http, LoginView.class);
