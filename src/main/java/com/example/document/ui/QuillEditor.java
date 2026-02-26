@@ -33,6 +33,10 @@ public class QuillEditor extends Component implements HasSize {
         return content;
     }
 
+    public void setReadOnly(boolean readOnly) {
+        getElement().executeJs("window.setReadOnly($0, $1)", getElement(), readOnly);
+    }
+
     // Llamado desde JS cada vez que el contenido cambia
     @ClientCallable
     public void updateContent(String html) {

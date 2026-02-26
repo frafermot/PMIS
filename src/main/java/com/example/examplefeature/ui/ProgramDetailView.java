@@ -156,13 +156,13 @@ public class ProgramDetailView extends VerticalLayout implements HasUrlParameter
 
     private void configureGrid() {
         projectGrid.setSizeFull();
-        projectGrid.addColumn(Project::getId).setHeader("ID").setWidth("100px");
-        projectGrid.addColumn(Project::getName).setHeader("Nombre");
+        projectGrid.addColumn(Project::getId).setHeader("ID").setWidth("60px").setFlexGrow(0);
+        projectGrid.addColumn(Project::getName).setHeader("Nombre").setFlexGrow(2);
         projectGrid
                 .addColumn(project -> project.getDirector() != null ? project.getDirector().getName() : "Sin Director")
-                .setHeader("Director");
+                .setHeader("Director").setFlexGrow(1);
         projectGrid.addColumn(project -> project.getSponsor() != null ? project.getSponsor().getName() : "Sin Sponsor")
-                .setHeader("Sponsor");
+                .setHeader("Sponsor").setFlexGrow(1);
 
         // Columna de Editar
         projectGrid.addComponentColumn(project -> {
@@ -196,7 +196,7 @@ public class ProgramDetailView extends VerticalLayout implements HasUrlParameter
 
         projectGrid.asSingleSelect().addValueChangeListener(event -> {
             if (event.getValue() != null) {
-                UI.getCurrent().navigate("project/" + event.getValue().getId());
+                UI.getCurrent().navigate("proyecto/" + event.getValue().getId());
             }
         });
     }

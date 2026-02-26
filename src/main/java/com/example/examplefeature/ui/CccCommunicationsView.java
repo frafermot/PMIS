@@ -87,7 +87,7 @@ public class CccCommunicationsView extends VerticalLayout implements HasUrlParam
         breadcrumb.getStyle().set("font-size", "0.9em");
 
         Button backToProjectButton = new Button(currentCcc.getProject().getName(), e -> {
-            UI.getCurrent().navigate("proyecto-ccc/" + currentCcc.getProject().getId());
+            UI.getCurrent().navigate("proyecto/" + currentCcc.getProject().getId());
         });
         backToProjectButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE);
 

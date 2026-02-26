@@ -51,11 +51,11 @@ public class UserView extends VerticalLayout {
     private void configureGrid() {
         grid.setSizeFull();
         grid.removeAllColumns();
-        grid.addColumn(User::getId).setHeader("ID");
-        grid.addColumn(User::getName).setHeader("Nombre");
-        grid.addColumn(User::getUvus).setHeader("UVUS");
+        grid.addColumn(User::getId).setHeader("ID").setWidth("60px").setFlexGrow(0);
+        grid.addColumn(User::getName).setHeader("Nombre").setFlexGrow(2);
+        grid.addColumn(User::getUvus).setHeader("UVUS").setFlexGrow(1);
         grid.addColumn(user -> user.getProject() != null ? user.getProject().getName() : "Sin Proyecto")
-                .setHeader("Proyecto");
+                .setHeader("Proyecto").setFlexGrow(1);
 
         grid.asSingleSelect().addValueChangeListener(event -> {
             if (event.getValue() != null) {

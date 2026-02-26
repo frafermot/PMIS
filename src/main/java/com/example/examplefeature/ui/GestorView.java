@@ -48,10 +48,11 @@ public class GestorView extends VerticalLayout {
     private void configureGrid() {
         grid.setSizeFull();
         grid.removeAllColumns();
-        grid.addColumn(User::getId).setHeader("ID");
-        grid.addColumn(User::getName).setHeader("Nombre");
-        grid.addColumn(User::getUvus).setHeader("UVUS");
-        grid.addColumn(user -> user.getRole() == Role.ADMIN ? "Sí" : "No").setHeader("Es Admin");
+        grid.addColumn(User::getId).setHeader("ID").setWidth("60px").setFlexGrow(0);
+        grid.addColumn(User::getName).setHeader("Nombre").setFlexGrow(2);
+        grid.addColumn(User::getUvus).setHeader("UVUS").setFlexGrow(1);
+        grid.addColumn(user -> user.getRole() == Role.ADMIN ? "Sí" : "No").setHeader("Es Admin").setWidth("80px")
+                .setFlexGrow(0);
 
         grid.asSingleSelect().addValueChangeListener(event -> {
             if (event.getValue() != null) {

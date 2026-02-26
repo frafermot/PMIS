@@ -22,11 +22,13 @@ import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.router.RouteAlias;
+import com.vaadin.flow.router.Menu;
 
 import jakarta.annotation.security.RolesAllowed;
 
 @Route(value = "portfolios", layout = MainLayout.class)
 @PageTitle("Portafolios")
+@Menu(order = 2, icon = "vaadin:briefcase", title = "Portafolios")
 @RolesAllowed({ "ADMIN", "MANAGER" })
 public class PortfolioView extends VerticalLayout {
 
@@ -50,11 +52,11 @@ public class PortfolioView extends VerticalLayout {
     private void configureGrid() {
         grid.setSizeFull();
         grid.removeAllColumns();
-        grid.addColumn(Portfolio::getId).setHeader("ID").setWidth("100px");
-        grid.addColumn(Portfolio::getName).setHeader("Nombre");
+        grid.addColumn(Portfolio::getId).setHeader("ID").setWidth("60px").setFlexGrow(0);
+        grid.addColumn(Portfolio::getName).setHeader("Nombre").setFlexGrow(2);
         grid.addColumn(
                 portfolio -> portfolio.getDirector() != null ? portfolio.getDirector().getName() : "Sin Director")
-                .setHeader("Director");
+                .setHeader("Director").setFlexGrow(1);
 
         // Columna de Editar
         grid.addComponentColumn(portfolio -> {

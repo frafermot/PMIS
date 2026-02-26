@@ -56,14 +56,14 @@ public class ProjectView extends VerticalLayout {
     private void configureGrid() {
         grid.setSizeFull();
         grid.removeAllColumns();
-        grid.addColumn(Project::getId).setHeader("ID").setWidth("100px");
-        grid.addColumn(Project::getName).setHeader("Nombre");
+        grid.addColumn(Project::getId).setHeader("ID").setWidth("60px").setFlexGrow(0);
+        grid.addColumn(Project::getName).setHeader("Nombre").setFlexGrow(2);
         grid.addColumn(project -> project.getDirector() != null ? project.getDirector().getName() : "Sin Director")
-                .setHeader("Director");
+                .setHeader("Director").setFlexGrow(1);
         grid.addColumn(project -> project.getProgram() != null ? project.getProgram().getName() : "Sin Programa")
-                .setHeader("Programa");
+                .setHeader("Programa").setFlexGrow(1);
         grid.addColumn(project -> project.getSponsor() != null ? project.getSponsor().getName() : "Sin Sponsor")
-                .setHeader("Sponsor");
+                .setHeader("Sponsor").setFlexGrow(1);
 
         // Columna de Editar
         grid.addComponentColumn(project -> {
@@ -106,7 +106,7 @@ public class ProjectView extends VerticalLayout {
         // Navigate to detail view on row click
         grid.addItemClickListener(event -> {
             if (event.getItem() != null) {
-                com.vaadin.flow.component.UI.getCurrent().navigate("project/" + event.getItem().getId());
+                com.vaadin.flow.component.UI.getCurrent().navigate("proyecto/" + event.getItem().getId());
             }
         });
     }
