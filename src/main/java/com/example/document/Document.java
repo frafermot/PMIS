@@ -37,6 +37,11 @@ public class Document {
     @JoinColumn(name = "project_id")
     private Project project;
 
+    @Column(name = "document_rating")
+    @Min(0)
+    @Max(10)
+    private Double rating;
+
     public Long getId() {
         return id;
     }
@@ -83,5 +88,13 @@ public class Document {
 
     public void setProject(Project project) {
         this.project = project;
+    }
+
+    public Double getRating() {
+        return rating;
+    }
+
+    public void setRating(Double rating) {
+        this.rating = rating;
     }
 }

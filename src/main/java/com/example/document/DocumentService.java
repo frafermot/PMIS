@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
+import java.math.BigDecimal;
 
 @Service
 @Transactional
@@ -21,9 +22,9 @@ public class DocumentService {
     private final UserService userService;
 
     public DocumentService(DocumentRepository documentRepository,
-                           DocumentVersionRepository documentVersionRepository,
-                           SecurityService securityService,
-                           UserService userService) {
+            DocumentVersionRepository documentVersionRepository,
+            SecurityService securityService,
+            UserService userService) {
         this.documentRepository = documentRepository;
         this.documentVersionRepository = documentVersionRepository;
         this.securityService = securityService;
@@ -36,43 +37,62 @@ public class DocumentService {
             throw new SecurityException("Debe autenticarse para guardar documentos");
         }
 
+        if (document.getId() != null) {
+            Document existing = documentRepository.findById(document.getId())
+                    .orElseThrow(() -> new IllegalArgumentException("Documento no encontrado"));
+
+            boolean isProgramDirector = existing.getProject() != null && existing.getProject().getProgram() != null
+                    && securityService.isProgramDirector(existing.getProject().getProgram().getId());
+
+            boolean isAssignedToProject = existing.getProject() != null
+                    && existing.getProject().equals(currentUser.getProject());
+
+            if (!isAssignedToProject && !isProgramDirector) {
+                throw new SecurityException("No tiene permiso para modificar este documento");
+            }
+
+            boolean canEditContent = existing.getProject() == null || isAssignedToProject;
+
+            if (canEditContent) {
+                if (!Objects.equals(existing.getContent(), document.getContent())) {
+                    documentVersionRepository.save(
+                            new DocumentVersion(
+                                    existing,
+                                    existing.getContent(),
+                                    securityService.getCurrentUser()));
+                    existing.setContent(document.getContent());
+                }
+                existing.setTitle(document.getTitle());
+            }
+
+            if (isProgramDirector) {
+                if (document.getRating() != null) {
+                    double r = document.getRating();
+                    if (r < 0 || r > 10) {
+                        throw new IllegalArgumentException("La valoración debe estar entre 0 y 10");
+                    }
+                    if (BigDecimal.valueOf(r).stripTrailingZeros().scale() > 2) {
+                        throw new IllegalArgumentException("La valoración no puede tener más de 2 decimales");
+                    }
+                }
+                existing.setRating(document.getRating());
+            }
+
+            existing.setUpdatedAt(LocalDateTime.now());
+            return documentRepository.save(existing);
+        }
+
         if (currentUser.getProject() == null) {
             throw new IllegalStateException("El usuario no tiene un proyecto asignado");
         }
 
-        if (document.getId() != null) {
-            Document existing = documentRepository.findById(document.getId())
-                    .orElseThrow(() -> new IllegalArgumentException("Documento no encontrado"));
-            if (existing.getProject() != null && !existing.getProject().equals(currentUser.getProject())) {
-                throw new SecurityException("No tiene permiso para modificar este documento");
-            }
-
-            if (!Objects.equals(existing.getContent(), document.getContent())) {
-                documentVersionRepository.save(
-                    new DocumentVersion(
-                            existing,
-                            existing.getContent(),
-                            securityService.getCurrentUser()
-                    )
-                );
-                existing.setContent(document.getContent());
-                existing.setTitle(document.getTitle());
-                existing.setUpdatedAt(LocalDateTime.now());
-                return existing;
-            }
-
-            existing.setTitle(document.getTitle());
-            existing.setUpdatedAt(LocalDateTime.now());
-            return documentRepository.save(existing);
-        }
-        
         document.setUpdatedAt(LocalDateTime.now());
         document.setProject(currentUser.getProject());
         return documentRepository.save(document);
     }
 
     public Document get(Long id) {
-        return documentRepository.findById(id).orElse(null);
+        return documentRepository.findByIdWithProjectAndProgram(id).orElse(null);
     }
 
     public void delete(Long id) {
@@ -93,7 +113,7 @@ public class DocumentService {
 
     public String buildUrl(Document document) {
         String titulo = document.getTitle().toLowerCase()
-            .replaceAll("[^a-z0-9\\s]+", "").trim().replaceAll("\\s+", "-");
+                .replaceAll("[^a-z0-9\\s]+", "").trim().replaceAll("\\s+", "-");
         return "document/" + document.getId() + "-" + titulo;
     }
 
