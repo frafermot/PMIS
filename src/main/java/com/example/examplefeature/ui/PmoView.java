@@ -51,12 +51,12 @@ public class PmoView extends VerticalLayout {
     private void configureGrid() {
         grid.setSizeFull();
         grid.removeAllColumns();
-        grid.addColumn(PMO::getId).setHeader("ID");
-        grid.addColumn(PMO::getName).setHeader("Nombre");
+        grid.addColumn(PMO::getId).setHeader("ID").setWidth("60px").setFlexGrow(0);
+        grid.addColumn(PMO::getName).setHeader("Nombre").setFlexGrow(2);
         grid.addColumn(pmo -> pmo.getPortfolio() != null ? pmo.getPortfolio().getName() : "Sin Portafolio")
-                .setHeader("Portafolio");
+                .setHeader("Portafolio").setFlexGrow(1);
         grid.addColumn(pmo -> pmo.getDirector() != null ? pmo.getDirector().getName() : "Sin Director")
-                .setHeader("Director");
+                .setHeader("Director").setFlexGrow(1);
 
         grid.asSingleSelect().addValueChangeListener(event -> {
             if (event.getValue() != null) {

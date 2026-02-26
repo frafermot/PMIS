@@ -54,12 +54,12 @@ public class ProgramView extends VerticalLayout {
     private void configureGrid() {
         grid.setSizeFull();
         grid.removeAllColumns();
-        grid.addColumn(Program::getId).setHeader("ID").setWidth("100px");
-        grid.addColumn(Program::getName).setHeader("Nombre");
+        grid.addColumn(Program::getId).setHeader("ID").setWidth("60px").setFlexGrow(0);
+        grid.addColumn(Program::getName).setHeader("Nombre").setFlexGrow(2);
         grid.addColumn(program -> program.getPortfolio() != null ? program.getPortfolio().getName() : "Sin Portafolio")
-                .setHeader("Portafolio");
+                .setHeader("Portafolio").setFlexGrow(1);
         grid.addColumn(program -> program.getDirector() != null ? program.getDirector().getName() : "Sin Director")
-                .setHeader("Director");
+                .setHeader("Director").setFlexGrow(1);
 
         // Columna de Editar
         grid.addComponentColumn(program -> {

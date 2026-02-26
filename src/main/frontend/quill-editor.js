@@ -39,3 +39,13 @@ window.setContent = (element, html) => {
         element._quill.root.innerHTML = html || "";
     }
 };
+
+window.setReadOnly = (element, readOnly) => {
+    if (element._quill) {
+        if (readOnly) {
+            element._quill.disable();
+        } else {
+            element._quill.enable();
+        }
+    }
+};

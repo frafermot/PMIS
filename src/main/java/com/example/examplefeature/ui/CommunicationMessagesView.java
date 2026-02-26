@@ -104,7 +104,7 @@ public class CommunicationMessagesView extends VerticalLayout implements HasUrlP
         Long cccId = currentCommunication.getCcc().getId();
 
         Button backToProjectButton = new Button(currentCommunication.getCcc().getProject().getName(), e -> {
-            UI.getCurrent().navigate("proyecto-ccc/" + projectId);
+            UI.getCurrent().navigate("proyecto/" + projectId);
         });
         backToProjectButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE);
 

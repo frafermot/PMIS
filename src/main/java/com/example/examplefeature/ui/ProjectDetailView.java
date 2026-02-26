@@ -6,6 +6,8 @@ import com.example.communication.Ccc;
 import com.example.communication.CccService;
 import com.example.project.Project;
 import com.example.project.ProjectService;
+import com.example.document.Document;
+import com.example.document.DocumentService;
 import com.example.security.SecurityService;
 import com.example.user.User;
 import com.example.user.UserService;
@@ -34,7 +36,7 @@ import jakarta.annotation.security.RolesAllowed;
 
 import java.util.List;
 
-@Route(value = "project", layout = MainLayout.class)
+@Route(value = "proyecto", layout = MainLayout.class)
 @PageTitle("Detalle de Proyecto")
 @RolesAllowed({ "ADMIN", "MANAGER", "USER" })
 public class ProjectDetailView extends VerticalLayout implements HasUrlParameter<Long> {
@@ -44,8 +46,10 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
     private final SecurityService securityService;
     private final UserRepository userRepository;
     private final CccService cccService;
+    private final DocumentService documentService;
     private Project currentProject;
     private final Grid<User> userGrid = new Grid<>(User.class, false);
+    private final Grid<Document> documentGrid = new Grid<>(Document.class, false);
 
     private TextField nameField;
     private Select<User> directorSelect;
@@ -58,12 +62,14 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
     private String originalProgramName;
 
     public ProjectDetailView(ProjectService projectService, UserService userService,
-            UserRepository userRepository, SecurityService securityService, CccService cccService) {
+            UserRepository userRepository, SecurityService securityService, CccService cccService,
+            DocumentService documentService) {
         this.projectService = projectService;
         this.userService = userService;
         this.userRepository = userRepository;
         this.securityService = securityService;
         this.cccService = cccService;
+        this.documentService = documentService;
 
         setSizeFull();
         setPadding(true);
@@ -249,13 +255,63 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         configureGrid(canManageUsers);
         add(userGrid);
         updateUserList();
+
+        // Documents Section
+        add(new H3("Documentos del Proyecto"));
+
+        Button newDocButton = new Button("+ Nuevo Documento", e -> {
+            Document newDocument = new Document();
+            newDocument.setTitle(
+                    "Nuevo Documento " + (documentService.getDocumentsByProject(currentProject.getId()).size() + 1));
+            newDocument = documentService.createOrUpdate(newDocument);
+            String url = documentService.buildUrl(newDocument);
+            UI.getCurrent().navigate(url);
+        });
+        newDocButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+
+        // El botón no debe aparecer para director de programa de proyecto o sponsor
+        if (isProgramDirector || isSponsor) {
+            newDocButton.setVisible(false);
+        }
+
+        add(newDocButton);
+
+        configureDocumentGrid();
+        add(documentGrid);
+        updateDocumentList();
+    }
+
+    private void configureDocumentGrid() {
+        documentGrid.setSizeFull();
+        documentGrid.addColumn(Document::getId).setHeader("ID").setWidth("60px").setFlexGrow(0);
+        documentGrid.addColumn(Document::getTitle).setHeader("Título").setSortable(true).setFlexGrow(2);
+        documentGrid.addColumn(doc -> doc.getUpdatedAt() != null ? doc.getUpdatedAt().toLocalDate() : "")
+                .setHeader("Última actualización").setSortable(true).setFlexGrow(1);
+        documentGrid.addColumn(doc -> doc.getRating() != null ? doc.getRating().toString() : "Por concretar")
+                .setHeader("Valoración").setSortable(true).setFlexGrow(1);
+
+        documentGrid.addComponentColumn(document -> {
+            Button openButton = new Button("Abrir");
+            openButton.addClickListener(e -> {
+                String url = documentService.buildUrl(document);
+                UI.getCurrent().navigate(url);
+            });
+            openButton.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_PRIMARY);
+            return openButton;
+        }).setHeader("").setWidth("100px").setFlexGrow(0);
+
+        documentGrid.setHeight("250px");
+    }
+
+    private void updateDocumentList() {
+        documentGrid.setItems(documentService.getDocumentsByProject(currentProject.getId()));
     }
 
     private void configureGrid(boolean canManageUsers) {
         userGrid.setSizeFull();
-        userGrid.addColumn(User::getId).setHeader("ID").setWidth("100px");
-        userGrid.addColumn(User::getName).setHeader("Nombre");
-        userGrid.addColumn(User::getUvus).setHeader("UVUS");
+        userGrid.addColumn(User::getId).setHeader("ID").setWidth("60px").setFlexGrow(0);
+        userGrid.addColumn(User::getName).setHeader("Nombre").setFlexGrow(2);
+        userGrid.addColumn(User::getUvus).setHeader("UVUS").setFlexGrow(1);
 
         // Columna de Eliminar
         if (canManageUsers) {

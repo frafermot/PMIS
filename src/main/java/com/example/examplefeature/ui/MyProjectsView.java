@@ -20,7 +20,7 @@ import java.util.List;
 @Route(value = "mis-proyectos", layout = MainLayout.class)
 @PageTitle("Mis Proyectos")
 @Menu(order = 1, icon = "vaadin:briefcase", title = "Mis Proyectos")
-@RolesAllowed({ "USER", "MANAGER", "ADMIN" })
+@RolesAllowed({ "USER" })
 public class MyProjectsView extends VerticalLayout {
 
     private final AuthenticationContext authContext;
@@ -53,10 +53,10 @@ public class MyProjectsView extends VerticalLayout {
                 .setHeader("Director")
                 .setSortable(true);
 
-        // Navigate to project CCC view on row click
+        // Navigate to project detail view on row click
         projectGrid.addItemClickListener(event -> {
             if (event.getItem() != null) {
-                UI.getCurrent().navigate("proyecto-ccc/" + event.getItem().getId());
+                UI.getCurrent().navigate("proyecto/" + event.getItem().getId());
             }
         });
 

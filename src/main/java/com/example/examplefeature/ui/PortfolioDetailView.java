@@ -141,11 +141,11 @@ public class PortfolioDetailView extends VerticalLayout implements HasUrlParamet
 
     private void configureGrid() {
         programGrid.setSizeFull();
-        programGrid.addColumn(Program::getId).setHeader("ID").setWidth("100px");
-        programGrid.addColumn(Program::getName).setHeader("Nombre");
+        programGrid.addColumn(Program::getId).setHeader("ID").setWidth("60px").setFlexGrow(0);
+        programGrid.addColumn(Program::getName).setHeader("Nombre").setFlexGrow(2);
         programGrid
                 .addColumn(program -> program.getDirector() != null ? program.getDirector().getName() : "Sin Director")
-                .setHeader("Director");
+                .setHeader("Director").setFlexGrow(1);
 
         // Columna de Editar
         programGrid.addComponentColumn(program -> {
