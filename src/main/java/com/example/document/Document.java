@@ -8,7 +8,9 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 
 @Entity
-@Table(name = "document")
+@Table(name = "document", uniqueConstraints = {
+        @UniqueConstraint(columnNames = { "project_id", "document_type" })
+})
 public class Document {
 
     @Id
@@ -36,6 +38,15 @@ public class Document {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "project_id")
     private Project project;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "document_type", nullable = false)
+    @NotNull
+    private DocumentType type;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "document_status", nullable = false)
+    private DocumentStatus status = DocumentStatus.POR_CREAR;
 
     @Column(name = "document_rating")
     @Min(0)
@@ -96,5 +107,21 @@ public class Document {
 
     public void setRating(Double rating) {
         this.rating = rating;
+    }
+
+    public DocumentType getType() {
+        return type;
+    }
+
+    public void setType(DocumentType type) {
+        this.type = type;
+    }
+
+    public DocumentStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(DocumentStatus status) {
+        this.status = status;
     }
 }

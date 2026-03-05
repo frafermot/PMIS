@@ -1,5 +1,6 @@
 package com.example.document;
 
+import com.example.project.Project;
 import com.example.security.SecurityService;
 import com.example.user.User;
 import com.example.user.UserService;
@@ -8,7 +9,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.math.BigDecimal;
 
@@ -20,17 +24,70 @@ public class DocumentService {
     private final DocumentVersionRepository documentVersionRepository;
     private final SecurityService securityService;
     private final UserService userService;
+    private final TemplateService templateService;
 
     public DocumentService(DocumentRepository documentRepository,
             DocumentVersionRepository documentVersionRepository,
             SecurityService securityService,
-            UserService userService) {
+            UserService userService,
+            TemplateService templateService) {
         this.documentRepository = documentRepository;
         this.documentVersionRepository = documentVersionRepository;
         this.securityService = securityService;
         this.userService = userService;
+        this.templateService = templateService;
     }
 
+    /**
+     * Seeds one Document placeholder (POR_CREAR) per DocumentType for a project.
+     * Skips types that already have a document.
+     */
+    public void initDocumentsForProject(Project project) {
+        for (DocumentType type : DocumentType.values()) {
+            boolean exists = documentRepository
+                    .findByProjectIdAndType(project.getId(), type)
+                    .isPresent();
+            if (!exists) {
+                Document doc = new Document();
+                doc.setTitle(type.getLabel());
+                doc.setType(type);
+                doc.setStatus(DocumentStatus.POR_CREAR);
+                doc.setProject(project);
+                doc.setUpdatedAt(LocalDateTime.now());
+                documentRepository.save(doc);
+            }
+        }
+    }
+
+    /**
+     * Creates the actual content for a POR_CREAR document (loads template, sets
+     * EN_PROCESO).
+     */
+    public Document createDocument(Long projectId, DocumentType type) {
+        User currentUser = userService.findByUvusWithProject(securityService.getCurrentUser().getUvus());
+        if (currentUser == null || currentUser.getProject() == null
+                || !currentUser.getProject().getId().equals(projectId)) {
+            throw new SecurityException("No tiene permiso para crear documentos en este proyecto");
+        }
+
+        Document doc = documentRepository.findByProjectIdAndType(projectId, type)
+                .orElseThrow(() -> new IllegalStateException("Documento no encontrado para tipo: " + type));
+
+        if (doc.getStatus() != DocumentStatus.POR_CREAR) {
+            throw new IllegalStateException("El documento ya ha sido creado");
+        }
+
+        String template = templateService.loadTemplate(type);
+        doc.setContent(template);
+        doc.setStatus(DocumentStatus.EN_PROCESO);
+        doc.setUpdatedAt(LocalDateTime.now());
+        return documentRepository.save(doc);
+    }
+
+    /**
+     * Updates an existing document's content. Only allowed when status !=
+     * POR_CREAR.
+     */
     public Document createOrUpdate(Document document) {
         User currentUser = userService.findByUvusWithProject(securityService.getCurrentUser().getUvus());
         if (currentUser == null) {
@@ -51,6 +108,12 @@ public class DocumentService {
                 throw new SecurityException("No tiene permiso para modificar este documento");
             }
 
+            // Cannot edit content if status is POR_CREAR
+            if (existing.getStatus() == DocumentStatus.POR_CREAR) {
+                throw new IllegalStateException(
+                        "El documento debe ser creado primero antes de poder modificarse");
+            }
+
             boolean canEditContent = existing.getProject() == null || isAssignedToProject;
 
             if (canEditContent) {
@@ -62,7 +125,6 @@ public class DocumentService {
                                     securityService.getCurrentUser()));
                     existing.setContent(document.getContent());
                 }
-                existing.setTitle(document.getTitle());
             }
 
             if (isProgramDirector) {
@@ -82,6 +144,11 @@ public class DocumentService {
             return documentRepository.save(existing);
         }
 
+        // Creating a new document directly — only allowed internally
+        // (initDocumentsForProject / createDocument)
+        if (document.getType() == null) {
+            throw new IllegalArgumentException("El tipo de documento es obligatorio");
+        }
         if (currentUser.getProject() == null) {
             throw new IllegalStateException("El usuario no tiene un proyecto asignado");
         }
@@ -112,12 +179,29 @@ public class DocumentService {
     }
 
     public String buildUrl(Document document) {
-        String titulo = document.getTitle().toLowerCase()
-                .replaceAll("[^a-z0-9\\s]+", "").trim().replaceAll("\\s+", "-");
-        return "document/" + document.getId() + "-" + titulo;
+        return "document/" + document.getId();
     }
 
     public List<Document> getDocumentsByProject(Long projectId) {
         return documentRepository.findByProjectId(projectId);
+    }
+
+    /**
+     * Returns a map of DocumentType → Document for a project, with one entry per
+     * type.
+     */
+    public Map<DocumentType, Document> getProjectDocumentMap(Long projectId) {
+        List<Document> docs = documentRepository.findByProjectId(projectId);
+        Map<DocumentType, Document> map = new EnumMap<>(DocumentType.class);
+        for (Document d : docs) {
+            if (d.getType() != null) {
+                map.put(d.getType(), d);
+            }
+        }
+        // Ensure all types are present (fallback for projects not yet seeded)
+        for (DocumentType type : DocumentType.values()) {
+            map.putIfAbsent(type, null);
+        }
+        return map;
     }
 }

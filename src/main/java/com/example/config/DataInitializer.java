@@ -16,6 +16,8 @@ import com.example.pmo.PMOService;
 import com.example.program.ProgramService;
 import com.example.project.ProjectService;
 
+import com.example.document.DocumentService;
+
 @Component
 public class DataInitializer implements CommandLineRunner {
 
@@ -25,17 +27,19 @@ public class DataInitializer implements CommandLineRunner {
     private final ProjectService projectService;
     private final UserService userService;
     private final PasswordEncoder passwordEncoder;
+    private final DocumentService documentService;
 
     public DataInitializer(
             PortfolioService portfolioService, PMOService pmoService,
             ProgramService programService, ProjectService projectService, UserService userService,
-            PasswordEncoder passwordEncoder) {
+            PasswordEncoder passwordEncoder, DocumentService documentService) {
         this.portfolioService = portfolioService;
         this.pmoService = pmoService;
         this.programService = programService;
         this.projectService = projectService;
         this.userService = userService;
         this.passwordEncoder = passwordEncoder;
+        this.documentService = documentService;
     }
 
     @Override
@@ -98,15 +102,13 @@ public class DataInitializer implements CommandLineRunner {
             project.setName("Proyecto " + i + " de Lab 1");
             project.setProgram(program);
             project.setSponsor(coordinador);
-            // Fetching a user to be Project Manager (Director)
-            // (3*1 - 2) = 1. User 1.
-            // (3*2 - 2) = 4. User 4.
             User pm = userService.get((long) 3 * i - 2);
             if (pm != null) {
                 project.setDirector(pm);
-                projectService.createOrUpdate(project);
-                pm.setProject(project);
+                Project saved = projectService.createOrUpdate(project);
+                pm.setProject(saved);
                 userService.createOrUpdate(pm);
+                documentService.initDocumentsForProject(saved);
             }
         }
 
@@ -131,13 +133,13 @@ public class DataInitializer implements CommandLineRunner {
                 proj.setSponsor(manager);
 
                 // Logic: 6*i + 3*j - 2
-                // i=1, j=1 -> 6+3-2 = 7. User 7.
                 User pm = userService.get((long) 6 * i + 3 * j - 2);
                 if (pm != null) {
                     proj.setDirector(pm);
-                    projectService.createOrUpdate(proj);
-                    pm.setProject(proj);
+                    Project saved = projectService.createOrUpdate(proj);
+                    pm.setProject(saved);
                     userService.createOrUpdate(pm);
+                    documentService.initDocumentsForProject(saved);
                 }
             }
         }
