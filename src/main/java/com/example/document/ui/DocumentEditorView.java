@@ -3,10 +3,12 @@ package com.example.document.ui;
 import com.example.base.ui.MainLayout;
 import com.example.document.Document;
 import com.example.document.DocumentService;
+import com.example.document.DocumentStatus;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.textfield.NumberField;
-import com.vaadin.flow.component.textfield.TextField;
+import com.vaadin.flow.component.html.H3;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
@@ -32,10 +34,8 @@ public class DocumentEditorView extends VerticalLayout implements BeforeEnterObs
     private final UserService userService;
     private Document currentDocument;
 
-    private final TextField titleField = new TextField();
     private final NumberField ratingField = new NumberField("Valoración");
-    private final TextField readonlyRatingField = new TextField("Valoración");
-    private final QuillEditor editor = new QuillEditor();
+    private final CKEditorField editor = new CKEditorField();
     private final Button saveButton = new Button("Guardar");
 
     public DocumentEditorView(DocumentService documentService, SecurityService securityService,
@@ -49,8 +49,6 @@ public class DocumentEditorView extends VerticalLayout implements BeforeEnterObs
         setSpacing(true);
 
         editor.setSizeFull();
-        titleField.setWidthFull();
-        titleField.setPlaceholder("Título del documento");
 
         ratingField.setMin(0);
         ratingField.setMax(10);
@@ -58,22 +56,8 @@ public class DocumentEditorView extends VerticalLayout implements BeforeEnterObs
         ratingField.setPlaceholder("Por concretar");
         ratingField.setWidth("160px");
 
-        readonlyRatingField.setValue("Por concretar");
-        readonlyRatingField.setReadOnly(true);
-        readonlyRatingField.setWidth("160px");
-        readonlyRatingField.setVisible(false);
-
         saveButton.addClickListener(e -> saveDocument());
-
-        HorizontalLayout headerBar = new HorizontalLayout(titleField, ratingField, readonlyRatingField);
-        headerBar.setWidthFull();
-        headerBar.setFlexGrow(1, titleField);
-
-        HorizontalLayout footer = new HorizontalLayout(saveButton);
-        footer.setWidthFull();
-        footer.setJustifyContentMode(com.vaadin.flow.component.orderedlayout.FlexComponent.JustifyContentMode.END);
-        footer.getStyle().set("padding-top", "40px"); // Increased padding to push button down
-        footer.getStyle().set("margin-top", "auto"); // Pushes footer to the bottom of the flex layout
+        saveButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
 
         Button backButton = new Button("Volver al Proyecto", new Icon(VaadinIcon.ARROW_LEFT));
         backButton.addClickListener(e -> {
@@ -87,90 +71,67 @@ public class DocumentEditorView extends VerticalLayout implements BeforeEnterObs
         HorizontalLayout topBar = new HorizontalLayout(backButton);
         topBar.setWidthFull();
 
-        add(topBar, headerBar, editor, footer);
+        HorizontalLayout footer = new HorizontalLayout(saveButton);
+        footer.setWidthFull();
+        footer.setJustifyContentMode(com.vaadin.flow.component.orderedlayout.FlexComponent.JustifyContentMode.END);
+        footer.getStyle().set("padding-top", "16px");
+
+        add(topBar, editor, footer);
         expand(editor);
     }
 
     private void loadDocument() {
-        if (currentDocument == null) {
-            currentDocument = new Document();
-            currentDocument.setTitle("Nuevo Documento");
-            currentDocument = documentService.createOrUpdate(currentDocument);
-        }
+        // Title shown as heading (read-only, derived from type)
+        String heading = currentDocument.getType() != null
+                ? currentDocument.getType().getLabel()
+                : currentDocument.getTitle();
 
-        titleField.setValue(
-                currentDocument.getTitle() != null
-                        ? currentDocument.getTitle()
-                        : "Documento");
+        // Insert heading above editor
+        getChildren()
+                .filter(c -> c instanceof H3)
+                .findFirst()
+                .ifPresent(this::remove);
+        H3 titleHeading = new H3(heading);
+        addComponentAtIndex(1, titleHeading);
 
-        ratingField.setValue(currentDocument.getRating());
-
+        // Rating
         boolean canRate = false;
         if (currentDocument.getProject() != null && currentDocument.getProject().getProgram() != null) {
             canRate = securityService.isProgramDirector(currentDocument.getProject().getProgram().getId());
         }
+        ratingField.setValue(currentDocument.getRating());
         ratingField.setReadOnly(!canRate);
+        ratingField.setVisible(canRate || currentDocument.getRating() != null);
 
-        if (currentDocument.getRating() == null) {
-            // Document has no rating
-            ratingField.setVisible(false);
-            readonlyRatingField.setVisible(true);
-            if (canRate) {
-                // If they can rate, we still show the text field, but maybe we shouldn't?
-                // The prompt says "dentro del documento quiero que para los usuarios tambien
-                // vean 'por concretar' si no hay ninguna valoracion".
-                // This means ALL users (even those who might rate? But if they can rate, they
-                // need the input field to rate it).
-                // Actually, if they are the director and want to set it, `ratingField` with
-                // placeholder "Por concretar" is best,
-                // but NumberField might not show the placeholder properly when empty or maybe
-                // the user just wants the explicit text.
-                // However, they MUST be able to edit it if canRate.
-                // We'll let `ratingField` handle the input if `canRate`, because it has
-                // `setPlaceholder("Por concretar")`.
-                ratingField.setVisible(true);
-                readonlyRatingField.setVisible(false);
-            }
-        } else {
-            // Document has a rating
-            ratingField.setVisible(true);
-            readonlyRatingField.setVisible(false);
-        }
+        editor.setValue(currentDocument.getContent() != null ? currentDocument.getContent() : "");
 
-        editor.setValue(
-                currentDocument.getContent() != null
-                        ? currentDocument.getContent()
-                        : "");
-
-        // Determine if user can edit this document
+        // Determine edit permission
         boolean canEdit = false;
         User currentUser = securityService.getCurrentUser();
         if (currentUser != null) {
             User fullUser = userService.findByUvusWithProject(currentUser.getUvus());
             if (fullUser != null && currentDocument.getProject() != null) {
-                // Edit is allowed only if the user is explicitly assigned to this project
-                if (currentDocument.getProject().equals(fullUser.getProject())) {
-                    canEdit = true;
-                }
+                canEdit = currentDocument.getProject().equals(fullUser.getProject());
             } else if (currentDocument.getProject() == null) {
-                // New unassigned document (edge case before saving)
                 canEdit = true;
             }
         }
 
-        titleField.setReadOnly(!canEdit);
+        // Cannot edit if POR_CREAR (should not normally happen — editor is opened only
+        // after Crear)
+        if (currentDocument.getStatus() == DocumentStatus.POR_CREAR) {
+            canEdit = false;
+        }
+
         editor.setReadOnly(!canEdit);
         saveButton.setVisible(canEdit || canRate);
     }
 
     private void saveDocument() {
         try {
-            currentDocument.setTitle(titleField.getValue());
             currentDocument.setContent(editor.getValue());
             currentDocument.setRating(ratingField.getValue());
             currentDocument = documentService.createOrUpdate(currentDocument);
-            String newUrl = documentService.buildUrl(currentDocument);
-            UI.getCurrent().navigate(newUrl);
             Notification.show("Documento guardado");
         } catch (Exception e) {
             Notification.show(
@@ -182,7 +143,6 @@ public class DocumentEditorView extends VerticalLayout implements BeforeEnterObs
 
     @Override
     public void beforeEnter(BeforeEnterEvent event) {
-
         String param = event.getRouteParameters().get("doc").orElse(null);
 
         if (param == null) {
@@ -191,14 +151,12 @@ public class DocumentEditorView extends VerticalLayout implements BeforeEnterObs
         }
 
         Long id = extractId(param);
-
         if (id == null) {
             event.rerouteToError(NotFoundException.class);
             return;
         }
 
         currentDocument = documentService.get(id);
-
         if (currentDocument == null) {
             event.rerouteToError(NotFoundException.class);
             return;
@@ -208,10 +166,13 @@ public class DocumentEditorView extends VerticalLayout implements BeforeEnterObs
 
     private Long extractId(String param) {
         try {
-            String idPart = param.split("-")[0];
-            return Long.parseLong(idPart);
+            return Long.parseLong(param.split("-")[0]);
         } catch (Exception e) {
-            return null;
+            try {
+                return Long.parseLong(param);
+            } catch (Exception ex) {
+                return null;
+            }
         }
     }
 }
