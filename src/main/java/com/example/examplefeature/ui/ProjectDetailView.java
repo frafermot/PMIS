@@ -57,9 +57,21 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
     private Project currentProject;
     private final Grid<User> userGrid = new Grid<>(User.class, false);
 
+    // Permissions computed once in buildView
+    private boolean isProgramDirector;
+    private boolean isSponsor;
+
     private TextField nameField;
     private Select<User> directorSelect;
     private Select<User> sponsorSelect;
+
+    // Document view: the container that holds whichever mode is active
+    private VerticalLayout docViewContainer;
+    // Track active mode: true = by-phase, false = by-document
+    private boolean viewByPhase = true;
+    // Buttons for toggling (kept as fields to update their styles)
+    private Button btnByPhase;
+    private Button btnByDocument;
 
     // Breadcrumb data
     private Long originalProgramId;
@@ -85,7 +97,6 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
     @Override
     public void setParameter(BeforeEvent event, Long projectId) {
         currentProject = projectService.get(projectId);
-
         if (currentProject == null) {
             Notification.show("Proyecto no encontrado");
             UI.getCurrent().navigate("proyectos");
@@ -105,48 +116,57 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         buildView();
     }
 
+    // ─── Main build ───────────────────────────────────────────────────────────
+
     private void buildView() {
-        // ── Breadcrumb ────────────────────────────────────────────────────────
+        buildBreadcrumb();
+        buildProjectInfoSection();
+        buildUsersSection();
+        buildDocumentsSection();
+    }
+
+    // ─── Breadcrumb ───────────────────────────────────────────────────────────
+
+    private void buildBreadcrumb() {
         HorizontalLayout breadcrumb = new HorizontalLayout();
         breadcrumb.setSpacing(false);
         breadcrumb.getStyle().set("font-size", "0.9em");
 
-        Button backToPortfoliosButton = new Button("Portfolios",
-                e -> UI.getCurrent().navigate("portfolios"));
-        backToPortfoliosButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE);
-        breadcrumb.add(backToPortfoliosButton);
+        Button backBtn = new Button("Portfolios", e -> UI.getCurrent().navigate("portfolios"));
+        backBtn.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE);
+        breadcrumb.add(backBtn);
 
         if (originalPortfolioId != null && originalPortfolioName != null) {
             breadcrumb.add(new Span(" > "));
-            Button portfolioButton = new Button(originalPortfolioName,
+            Button b = new Button(originalPortfolioName,
                     e -> UI.getCurrent().navigate("portfolio/" + originalPortfolioId));
-            portfolioButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE);
-            breadcrumb.add(portfolioButton);
+            b.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE);
+            breadcrumb.add(b);
         }
         if (originalProgramId != null && originalProgramName != null) {
             breadcrumb.add(new Span(" > "));
-            Button programButton = new Button(originalProgramName,
+            Button b = new Button(originalProgramName,
                     e -> UI.getCurrent().navigate("program/" + originalProgramId));
-            programButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE);
-            breadcrumb.add(programButton);
+            b.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE);
+            breadcrumb.add(b);
         }
-        breadcrumb.add(new Span(" > "));
-        breadcrumb.add(new Span(currentProject.getName()));
+        breadcrumb.add(new Span(" > " + currentProject.getName()));
         add(breadcrumb);
+    }
 
-        // ── Project info ──────────────────────────────────────────────────────
+    // ─── Project info ────────────────────────────────────────────────────────
+
+    private void buildProjectInfoSection() {
         HorizontalLayout headerLayout = new HorizontalLayout();
         headerLayout.setWidthFull();
         headerLayout.setAlignItems(Alignment.CENTER);
         headerLayout.setJustifyContentMode(JustifyContentMode.BETWEEN);
-
-        H2 title = new H2("Información del Proyecto");
-        headerLayout.add(title);
+        headerLayout.add(new H2("Información del Proyecto"));
 
         if (securityService.isProjectDirectorOrSponsor(currentProject.getId())) {
             Button cccButton = new Button("Control de Comité de Cambios", e -> {
-                Optional<Ccc> cccOptional = cccService.getCccByProject(currentProject.getId());
-                Ccc ccc = cccOptional.orElseGet(() -> cccService.createCccForProject(currentProject));
+                Optional<Ccc> cccOpt = cccService.getCccByProject(currentProject.getId());
+                Ccc ccc = cccOpt.orElseGet(() -> cccService.createCccForProject(currentProject));
                 UI.getCurrent().navigate("ccc/" + ccc.getId());
             });
             cccButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
@@ -187,15 +207,14 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         formLayout.setAlignItems(Alignment.END);
         add(formLayout);
 
-        // ── Permissions ───────────────────────────────────────────────────────
-        boolean isProgramDirector = currentProject.getProgram() != null
+        // Compute permissions
+        isProgramDirector = currentProject.getProgram() != null
                 && securityService.isProgramDirector(currentProject.getProgram().getId());
-
-        User currentUser = securityService.getCurrentUser();
-        boolean isSponsor = currentProject.getSponsor() != null && currentUser != null
-                && currentProject.getSponsor().getId().equals(currentUser.getId());
-        boolean isProjectDirector = currentProject.getDirector() != null && currentUser != null
-                && currentProject.getDirector().getId().equals(currentUser.getId());
+        User cu = securityService.getCurrentUser();
+        isSponsor = currentProject.getSponsor() != null && cu != null
+                && currentProject.getSponsor().getId().equals(cu.getId());
+        boolean isProjectDirector = currentProject.getDirector() != null && cu != null
+                && currentProject.getDirector().getId().equals(cu.getId());
         boolean isSystemAdmin = securityService.isAdmin();
         boolean canEditProjectInfo = isSystemAdmin || isProgramDirector;
         boolean canAssignDirector = canEditProjectInfo || isSponsor;
@@ -218,89 +237,137 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         if (!canEditProjectInfo && !canAssignDirector) {
             saveButton.setVisible(false);
         }
+    }
 
-        // ── Users Section (collapsible, starts CLOSED) ────────────────────────
+    // ─── Users section (collapsible, closed by default) ───────────────────────
+
+    private void buildUsersSection() {
+        User cu = securityService.getCurrentUser();
+        boolean isSystemAdmin = securityService.isAdmin();
+        boolean isProjectDirector = currentProject.getDirector() != null && cu != null
+                && currentProject.getDirector().getId().equals(cu.getId());
         boolean canManageUsers = isSystemAdmin || isSponsor || isProjectDirector;
-        VerticalLayout usersContent = buildUsersContent(canManageUsers);
 
-        Details usersDetails = new Details("Usuarios Asignados", usersContent);
-        usersDetails.setOpened(false); // starts closed
-        usersDetails.setWidthFull();
-        add(usersDetails);
+        VerticalLayout content = new VerticalLayout();
+        content.setPadding(false);
+        if (canManageUsers) {
+            Button addBtn = new Button("Añadir Usuarios", e -> openAssignUsersDialog());
+            addBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+            content.add(addBtn);
+        }
+        configureUserGrid(canManageUsers);
+        updateUserList();
+        content.add(userGrid);
 
-        // ── Documents Section ─────────────────────────────────────────────────
-        add(new H3("Documentos del Proyecto"));
+        Details details = new Details("Usuarios Asignados", content);
+        details.setOpened(false); // starts closed
+        details.setWidthFull();
+        add(details);
+    }
 
-        // Seed documents if not yet done (idempotent)
+    // ─── Documents section ───────────────────────────────────────────────────
+
+    private void buildDocumentsSection() {
+        // Seed documents (idempotent)
         documentService.initDocumentsForProject(currentProject);
 
+        // ── Section header ──
+        H3 heading = new H3("Documentos del Proyecto");
+        add(heading);
+
+        // ── Toggle buttons ──────────────────────────────────────────────────
+        btnByPhase = new Button("Por Fases", e -> switchDocView(true));
+        btnByDocument = new Button("Por Documentos", e -> switchDocView(false));
+
+        styleToggleButton(btnByPhase, true); // active by default
+        styleToggleButton(btnByDocument, false);
+
+        HorizontalLayout toggleBar = new HorizontalLayout(btnByPhase, btnByDocument);
+        toggleBar.setSpacing(true);
+        toggleBar.setAlignItems(Alignment.CENTER);
+        add(toggleBar);
+
+        // ── Content container ────────────────────────────────────────────────
+        docViewContainer = new VerticalLayout();
+        docViewContainer.setPadding(false);
+        docViewContainer.setSpacing(true);
+        docViewContainer.setWidthFull();
+        add(docViewContainer);
+
+        // Render initial view
+        renderDocView();
+    }
+
+    private void switchDocView(boolean byPhase) {
+        if (viewByPhase == byPhase)
+            return;
+        viewByPhase = byPhase;
+        styleToggleButton(btnByPhase, byPhase);
+        styleToggleButton(btnByDocument, !byPhase);
+        renderDocView();
+    }
+
+    private void styleToggleButton(Button btn, boolean active) {
+        btn.getStyle().remove("background-color");
+        btn.getStyle().remove("color");
+        btn.getStyle().remove("border");
+        btn.getStyle().remove("font-weight");
+        if (active) {
+            btn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+            btn.removeThemeVariants(ButtonVariant.LUMO_TERTIARY);
+        } else {
+            btn.removeThemeVariants(ButtonVariant.LUMO_PRIMARY);
+            btn.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
+        }
+    }
+
+    private void renderDocView() {
+        docViewContainer.removeAll();
         Map<DocumentType, Document> docMap = documentService.getProjectDocumentMap(currentProject.getId());
 
-        // Group by phase in fixed order
+        if (viewByPhase) {
+            renderByPhase(docMap);
+        } else {
+            renderByDocument(docMap);
+        }
+    }
+
+    // ── VIEW: By Phase ────────────────────────────────────────────────────────
+
+    private void renderByPhase(Map<DocumentType, Document> docMap) {
         String[] phases = { "inicio", "planificacion", "ejecucion", "cierre" };
         for (String phase : phases) {
             List<DocumentType> typesInPhase = Arrays.stream(DocumentType.values())
                     .filter(t -> t.getPhase().equals(phase))
                     .collect(Collectors.toList());
 
-            VerticalLayout phaseContent = buildPhaseGrid(typesInPhase, docMap, isProgramDirector, isSponsor);
-
-            // Use the label of the first type's phase (they all share the same phase label)
             String phaseLabel = typesInPhase.get(0).getPhaseLabel();
+            VerticalLayout phaseContent = buildDocGrid(typesInPhase, docMap);
+
             Details phaseDetails = new Details(phaseLabel, phaseContent);
-            phaseDetails.setOpened(true); // phase groups start open
+            phaseDetails.setOpened(true);
             phaseDetails.setWidthFull();
-            add(phaseDetails);
+            docViewContainer.add(phaseDetails);
         }
     }
 
-    // ── Users content ─────────────────────────────────────────────────────────
+    // ── VIEW: By Document (flat grid ordered alphabetically) ──────────────────
 
-    private VerticalLayout buildUsersContent(boolean canManageUsers) {
-        VerticalLayout layout = new VerticalLayout();
-        layout.setPadding(false);
-        layout.setSpacing(true);
+    private void renderByDocument(Map<DocumentType, Document> docMap) {
+        List<DocumentType> allTypes = Arrays.stream(DocumentType.values())
+                .sorted((a, b) -> a.getLabel().compareToIgnoreCase(b.getLabel()))
+                .collect(Collectors.toList());
 
-        if (canManageUsers) {
-            Button addUsersButton = new Button("Añadir Usuarios", e -> openAssignUsersDialog());
-            addUsersButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-            layout.add(addUsersButton);
-        }
-
-        configureUserGrid(canManageUsers);
-        layout.add(userGrid);
-        updateUserList();
-        return layout;
+        VerticalLayout grid = buildDocGrid(allTypes, docMap);
+        docViewContainer.add(grid);
     }
 
-    private void configureUserGrid(boolean canManageUsers) {
-        userGrid.setSizeFull();
-        userGrid.addColumn(User::getId).setHeader("ID").setWidth("60px").setFlexGrow(0);
-        userGrid.addColumn(User::getName).setHeader("Nombre").setFlexGrow(2);
-        userGrid.addColumn(User::getUvus).setHeader("UVUS").setFlexGrow(1);
+    // ── Shared grid builder ───────────────────────────────────────────────────
 
-        if (canManageUsers) {
-            userGrid.addComponentColumn(user -> {
-                Button removeButton = new Button("Eliminar", e -> unassignUser(user));
-                removeButton.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_ERROR);
-                return removeButton;
-            }).setHeader("").setWidth("100px").setFlexGrow(0);
-        }
-        userGrid.setHeight("250px");
-        userGrid.setPageSize(10);
-    }
-
-    // ── Documents grid per phase ──────────────────────────────────────────────
-
-    /**
-     * Data record used to drive the document grid rows.
-     */
     private record DocRow(DocumentType type, Document document) {
     }
 
-    private VerticalLayout buildPhaseGrid(List<DocumentType> types, Map<DocumentType, Document> docMap,
-            boolean isProgramDirector, boolean isSponsor) {
-
+    private VerticalLayout buildDocGrid(List<DocumentType> types, Map<DocumentType, Document> docMap) {
         List<DocRow> rows = types.stream()
                 .map(t -> new DocRow(t, docMap.get(t)))
                 .collect(Collectors.toList());
@@ -309,36 +376,48 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         grid.setWidthFull();
         grid.setAllRowsVisible(true);
 
-        // Documento column
-        grid.addColumn(r -> r.type().getLabel()).setHeader("Documento").setFlexGrow(2);
+        // Document name column
+        grid.addColumn(r -> r.type().getLabel())
+                .setHeader("Documento")
+                .setFlexGrow(2);
 
-        // Estado column with badge-like styling
+        // Phase column (useful in the "by document" flat view)
+        if (!viewByPhase) {
+            grid.addColumn(r -> r.type().getPhaseLabel())
+                    .setHeader("Fase")
+                    .setWidth("130px")
+                    .setFlexGrow(0);
+        }
+
+        // Status badge
         grid.addComponentColumn(r -> {
             DocumentStatus status = r.document() != null ? r.document().getStatus() : DocumentStatus.POR_CREAR;
             Span badge = new Span(status.getLabel());
             badge.getStyle()
                     .set("font-size", "0.8em")
-                    .set("padding", "2px 8px")
+                    .set("padding", "2px 10px")
                     .set("border-radius", "12px")
                     .set("font-weight", "600")
                     .set("background-color", statusColor(status))
                     .set("color", "white");
             return badge;
-        }).setHeader("Estado").setFlexGrow(1);
+        }).setHeader("Estado").setWidth("140px").setFlexGrow(0);
 
-        // Actions column
-        grid.addComponentColumn(r -> buildActionsButton(r, isProgramDirector, isSponsor))
+        // Actions context menu
+        grid.addComponentColumn(r -> buildActionsButton(r))
                 .setHeader("Acciones").setWidth("130px").setFlexGrow(0);
 
         grid.setItems(rows);
 
-        VerticalLayout layout = new VerticalLayout(grid);
-        layout.setPadding(false);
-        layout.setSpacing(false);
-        return layout;
+        VerticalLayout wrapper = new VerticalLayout(grid);
+        wrapper.setPadding(false);
+        wrapper.setSpacing(false);
+        return wrapper;
     }
 
-    private Button buildActionsButton(DocRow row, boolean isProgramDirector, boolean isSponsor) {
+    // ─── Actions button ───────────────────────────────────────────────────────
+
+    private Button buildActionsButton(DocRow row) {
         DocumentStatus status = row.document() != null ? row.document().getStatus() : DocumentStatus.POR_CREAR;
         boolean isPorCrear = status == DocumentStatus.POR_CREAR;
 
@@ -348,25 +427,22 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         ContextMenu menu = new ContextMenu(actionsBtn);
         menu.setOpenOnClick(true);
 
-        // ── Crear ──
+        // Crear — only when POR_CREAR and user is not just a viewer
+        // (sponsor/programDirector can't create)
         var crearItem = menu.addItem("Crear", e -> handleCrear(row.type()));
         crearItem.setEnabled(isPorCrear && !isProgramDirector && !isSponsor);
 
-        // ── Modificar ──
+        // Modificar — only when document exists
         var modificarItem = menu.addItem("Modificar", e -> handleModificar(row.document()));
         modificarItem.setEnabled(!isPorCrear && row.document() != null);
 
-        // ── Enviar (no-op) ──
-        var enviarItem = menu.addItem("Enviar", e -> Notification.show("Funcionalidad de envío no disponible aún"));
-        enviarItem.setEnabled(false);
-
-        // ── Firmar (no-op) ──
-        var firmarItem = menu.addItem("Firmar", e -> Notification.show("Funcionalidad de firma no disponible aún"));
-        firmarItem.setEnabled(false);
-
-        // ── Imprimir (no-op) ──
-        var imprimirItem = menu.addItem("Imprimir", e -> Notification.show("Descarga PDF no disponible aún"));
-        imprimirItem.setEnabled(false);
+        // No-op actions
+        menu.addItem("Enviar", e -> Notification.show("Funcionalidad de envío no disponible aún"))
+                .setEnabled(false);
+        menu.addItem("Firmar", e -> Notification.show("Funcionalidad de firma no disponible aún"))
+                .setEnabled(false);
+        menu.addItem("Imprimir", e -> Notification.show("Descarga PDF no disponible aún"))
+                .setEnabled(false);
 
         return actionsBtn;
     }
@@ -376,8 +452,7 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
             Document created = documentService.createDocument(currentProject.getId(), type);
             UI.getCurrent().navigate("document/" + created.getId());
         } catch (Exception ex) {
-            Notification.show("Error al crear el documento: " + ex.getMessage(), 5000,
-                    Notification.Position.MIDDLE);
+            Notification.show("Error al crear el documento: " + ex.getMessage(), 5000, Notification.Position.MIDDLE);
         }
     }
 
@@ -397,7 +472,7 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         };
     }
 
-    // ── Project save ──────────────────────────────────────────────────────────
+    // ─── Project save ─────────────────────────────────────────────────────────
 
     private void saveProject() {
         if (nameField.isEmpty() || sponsorSelect.isEmpty()) {
@@ -411,11 +486,26 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         Notification.show("Proyecto actualizado exitosamente");
     }
 
-    // ── User management ───────────────────────────────────────────────────────
+    // ─── User grid ────────────────────────────────────────────────────────────
+
+    private void configureUserGrid(boolean canManageUsers) {
+        userGrid.setSizeFull();
+        userGrid.addColumn(User::getId).setHeader("ID").setWidth("60px").setFlexGrow(0);
+        userGrid.addColumn(User::getName).setHeader("Nombre").setFlexGrow(2);
+        userGrid.addColumn(User::getUvus).setHeader("UVUS").setFlexGrow(1);
+        if (canManageUsers) {
+            userGrid.addComponentColumn(user -> {
+                Button removeButton = new Button("Eliminar", e -> unassignUser(user));
+                removeButton.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_ERROR);
+                return removeButton;
+            }).setHeader("").setWidth("100px").setFlexGrow(0);
+        }
+        userGrid.setHeight("250px");
+        userGrid.setPageSize(10);
+    }
 
     private void updateUserList() {
-        List<User> assignedUsers = userService.findByProject(currentProject.getId());
-        userGrid.setItems(assignedUsers);
+        userGrid.setItems(userService.findByProject(currentProject.getId()));
     }
 
     private void updateDirectorList() {
@@ -423,12 +513,14 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         if (currentProject.getDirector() != null && !projectUsers.contains(currentProject.getDirector())) {
             projectUsers.add(currentProject.getDirector());
         }
-        User currentSelection = directorSelect.getValue();
+        User current = directorSelect.getValue();
         directorSelect.setItems(projectUsers);
-        if (currentSelection != null && projectUsers.contains(currentSelection)) {
-            directorSelect.setValue(currentSelection);
+        if (current != null && projectUsers.contains(current)) {
+            directorSelect.setValue(current);
         }
     }
+
+    // ─── Assign users dialog ──────────────────────────────────────────────────
 
     private void openAssignUsersDialog() {
         Dialog dialog = new Dialog();
@@ -439,53 +531,43 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         searchField.setPlaceholder("Escribe UVUS para filtrar...");
         searchField.setWidthFull();
 
-        Grid<User> availableUsersGrid = new Grid<>(User.class, false);
-        availableUsersGrid.addColumn(User::getUvus).setHeader("UVUS").setWidth("150px");
-        availableUsersGrid.addColumn(User::getName).setHeader("Nombre");
-        availableUsersGrid.addColumn(user -> user.getRole() != null ? user.getRole().name() : "")
-                .setHeader("Rol").setWidth("120px");
-        availableUsersGrid.setSelectionMode(Grid.SelectionMode.MULTI);
-        availableUsersGrid.setHeight("400px");
+        Grid<User> availableGrid = new Grid<>(User.class, false);
+        availableGrid.addColumn(User::getUvus).setHeader("UVUS").setWidth("150px");
+        availableGrid.addColumn(User::getName).setHeader("Nombre");
+        availableGrid.addColumn(u -> u.getRole() != null ? u.getRole().name() : "").setHeader("Rol").setWidth("120px");
+        availableGrid.setSelectionMode(Grid.SelectionMode.MULTI);
+        availableGrid.setHeight("400px");
 
-        List<User> availableUsers = userService.findAvailableForProject(currentProject.getId());
-        availableUsersGrid.setItems(availableUsers);
+        List<User> available = userService.findAvailableForProject(currentProject.getId());
+        availableGrid.setItems(available);
 
         searchField.addValueChangeListener(e -> {
-            String filter = e.getValue().toLowerCase().trim();
-            if (filter.isEmpty()) {
-                availableUsersGrid.setItems(availableUsers);
-            } else {
-                availableUsersGrid.setItems(
-                        availableUsers.stream()
-                                .filter(user -> user.getUvus().toLowerCase().contains(filter))
-                                .toList());
-            }
+            String f = e.getValue().toLowerCase().trim();
+            availableGrid.setItems(f.isEmpty() ? available
+                    : available.stream().filter(u -> u.getUvus().toLowerCase().contains(f)).toList());
         });
 
-        VerticalLayout dialogLayout = new VerticalLayout(searchField, availableUsersGrid);
-        dialogLayout.setPadding(false);
-        dialog.add(dialogLayout);
+        dialog.add(new VerticalLayout(searchField, availableGrid));
 
-        Button saveAssignBtn = new Button("Asignar Seleccionados", e -> {
-            var selectedUsers = availableUsersGrid.getSelectedItems();
-            if (selectedUsers.isEmpty()) {
+        Button assignBtn = new Button("Asignar Seleccionados", e -> {
+            var selected = availableGrid.getSelectedItems();
+            if (selected.isEmpty()) {
                 Notification.show("Por favor seleccione al menos un usuario");
                 return;
             }
-            for (User user : selectedUsers) {
-                user.setProject(currentProject);
-                userService.createOrUpdate(user);
+            for (User u : selected) {
+                u.setProject(currentProject);
+                userService.createOrUpdate(u);
             }
             updateUserList();
             updateDirectorList();
             dialog.close();
-            Notification.show(selectedUsers.size() + " usuario(s) asignado(s) exitosamente");
+            Notification.show(selected.size() + " usuario(s) asignado(s) exitosamente");
         });
-        saveAssignBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        assignBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
 
-        Button cancelButton = new Button("Cancelar", e -> dialog.close());
-        dialog.getFooter().add(cancelButton);
-        dialog.getFooter().add(saveAssignBtn);
+        dialog.getFooter().add(new Button("Cancelar", e -> dialog.close()));
+        dialog.getFooter().add(assignBtn);
         dialog.open();
     }
 
