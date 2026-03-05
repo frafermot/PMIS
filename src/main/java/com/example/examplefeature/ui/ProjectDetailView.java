@@ -12,7 +12,6 @@ import com.example.project.ProjectService;
 import com.example.security.SecurityService;
 import com.example.user.Role;
 import com.example.user.User;
-import com.example.user.UserRepository;
 import com.example.user.UserService;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
@@ -25,8 +24,6 @@ import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.H3;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.notification.Notification;
-import com.vaadin.flow.component.orderedlayout.FlexComponent.Alignment;
-import com.vaadin.flow.component.orderedlayout.FlexComponent.JustifyContentMode;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.select.Select;
@@ -51,7 +48,6 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
     private final ProjectService projectService;
     private final UserService userService;
     private final SecurityService securityService;
-    private final UserRepository userRepository;
     private final CccService cccService;
     private final DocumentService documentService;
     private Project currentProject;
@@ -80,11 +76,10 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
     private String originalProgramName;
 
     public ProjectDetailView(ProjectService projectService, UserService userService,
-            UserRepository userRepository, SecurityService securityService, CccService cccService,
+            SecurityService securityService, CccService cccService,
             DocumentService documentService) {
         this.projectService = projectService;
         this.userService = userService;
-        this.userRepository = userRepository;
         this.securityService = securityService;
         this.cccService = cccService;
         this.documentService = documentService;
@@ -213,8 +208,6 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         User cu = securityService.getCurrentUser();
         isSponsor = currentProject.getSponsor() != null && cu != null
                 && currentProject.getSponsor().getId().equals(cu.getId());
-        boolean isProjectDirector = currentProject.getDirector() != null && cu != null
-                && currentProject.getDirector().getId().equals(cu.getId());
         boolean isSystemAdmin = securityService.isAdmin();
         boolean canEditProjectInfo = isSystemAdmin || isProgramDirector;
         boolean canAssignDirector = canEditProjectInfo || isSponsor;
@@ -243,7 +236,8 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
 
     private void buildUsersSection() {
         User cu = securityService.getCurrentUser();
-        boolean isSystemAdmin = securityService.isAdmin();
+        boolean isSystemAdmin = securityService.isAdmin(); // Re-declared here for scope, or assume it's a field/passed.
+                                                           // Assuming it's a local variable for this method.
         boolean isProjectDirector = currentProject.getDirector() != null && cu != null
                 && currentProject.getDirector().getId().equals(cu.getId());
         boolean canManageUsers = isSystemAdmin || isSponsor || isProjectDirector;
@@ -403,6 +397,23 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
             return badge;
         }).setHeader("Estado").setWidth("140px").setFlexGrow(0);
 
+        // Valoración column — visible to all, shows dash when not rated
+        grid.addComponentColumn(r -> {
+            Double rating = r.document() != null ? r.document().getRating() : null;
+            if (rating == null) {
+                Span dash = new Span("—");
+                dash.getStyle().set("color", "#9e9e9e");
+                return dash;
+            }
+            // Format: ★ 8.5 / 10
+            String text = String.format("★ %.1f / 10", rating);
+            Span ratingSpan = new Span(text);
+            ratingSpan.getStyle()
+                    .set("font-weight", "600")
+                    .set("color", ratingColor(rating));
+            return ratingSpan;
+        }).setHeader("Valoración").setWidth("130px").setFlexGrow(0);
+
         // Actions context menu
         grid.addComponentColumn(r -> buildActionsButton(r))
                 .setHeader("Acciones").setWidth("130px").setFlexGrow(0);
@@ -470,6 +481,17 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
             case ENVIADO -> "#f57c00";
             case VALORADO -> "#7b1fa2";
         };
+    }
+
+    /** Colour-codes the star rating: green ≥ 7, orange ≥ 4, red below 4. */
+    private String ratingColor(Double rating) {
+        if (rating == null)
+            return "#9e9e9e";
+        if (rating >= 7)
+            return "#388e3c";
+        if (rating >= 4)
+            return "#f57c00";
+        return "#d32f2f";
     }
 
     // ─── Project save ─────────────────────────────────────────────────────────

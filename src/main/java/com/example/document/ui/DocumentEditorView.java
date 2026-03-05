@@ -35,6 +35,7 @@ public class DocumentEditorView extends VerticalLayout implements BeforeEnterObs
     private Document currentDocument;
 
     private final NumberField ratingField = new NumberField("Valoración");
+    private final Button saveRatingButton = new Button("Guardar Valoración");
     private final CKEditorField editor = new CKEditorField();
     private final Button saveButton = new Button("Guardar");
 
@@ -53,8 +54,12 @@ public class DocumentEditorView extends VerticalLayout implements BeforeEnterObs
         ratingField.setMin(0);
         ratingField.setMax(10);
         ratingField.setStep(0.01);
-        ratingField.setPlaceholder("Por concretar");
+        ratingField.setPlaceholder("Sin valorar");
         ratingField.setWidth("160px");
+
+        saveRatingButton.addThemeVariants(ButtonVariant.LUMO_SUCCESS, ButtonVariant.LUMO_SMALL);
+        saveRatingButton.addClickListener(e -> saveRating());
+        saveRatingButton.setVisible(false); // only visible for program director
 
         saveButton.addClickListener(e -> saveDocument());
         saveButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
@@ -68,8 +73,16 @@ public class DocumentEditorView extends VerticalLayout implements BeforeEnterObs
             }
         });
 
-        HorizontalLayout topBar = new HorizontalLayout(backButton);
+        // Rating group: field + its own save button (shown only to program director)
+        HorizontalLayout ratingGroup = new HorizontalLayout(ratingField, saveRatingButton);
+        ratingGroup.setAlignItems(com.vaadin.flow.component.orderedlayout.FlexComponent.Alignment.END);
+        ratingGroup.setSpacing(true);
+        ratingField.setVisible(false); // hidden until loadDocument sets it
+
+        HorizontalLayout topBar = new HorizontalLayout(backButton, ratingGroup);
         topBar.setWidthFull();
+        topBar.setAlignItems(com.vaadin.flow.component.orderedlayout.FlexComponent.Alignment.CENTER);
+        topBar.setJustifyContentMode(com.vaadin.flow.component.orderedlayout.FlexComponent.JustifyContentMode.BETWEEN);
 
         HorizontalLayout footer = new HorizontalLayout(saveButton);
         footer.setWidthFull();
@@ -81,34 +94,22 @@ public class DocumentEditorView extends VerticalLayout implements BeforeEnterObs
     }
 
     private void loadDocument() {
-        // Title shown as heading (read-only, derived from type)
+        // Title heading (read-only, derived from type)
         String heading = currentDocument.getType() != null
                 ? currentDocument.getType().getLabel()
                 : currentDocument.getTitle();
+        getChildren().filter(c -> c instanceof H3).findFirst().ifPresent(this::remove);
+        addComponentAtIndex(1, new H3(heading));
 
-        // Insert heading above editor
-        getChildren()
-                .filter(c -> c instanceof H3)
-                .findFirst()
-                .ifPresent(this::remove);
-        H3 titleHeading = new H3(heading);
-        addComponentAtIndex(1, titleHeading);
-
-        // Rating
+        // ── Permission flags ──────────────────────────────────────────────────
         boolean canRate = false;
         if (currentDocument.getProject() != null && currentDocument.getProject().getProgram() != null) {
             canRate = securityService.isProgramDirector(currentDocument.getProject().getProgram().getId());
         }
-        ratingField.setValue(currentDocument.getRating());
-        ratingField.setReadOnly(!canRate);
-        ratingField.setVisible(canRate || currentDocument.getRating() != null);
 
-        editor.setValue(currentDocument.getContent() != null ? currentDocument.getContent() : "");
-
-        // Determine edit permission
         boolean canEdit = false;
         User currentUser = securityService.getCurrentUser();
-        if (currentUser != null) {
+        if (currentUser != null && !canRate) { // program director cannot edit content
             User fullUser = userService.findByUvusWithProject(currentUser.getUvus());
             if (fullUser != null && currentDocument.getProject() != null) {
                 canEdit = currentDocument.getProject().equals(fullUser.getProject());
@@ -116,28 +117,57 @@ public class DocumentEditorView extends VerticalLayout implements BeforeEnterObs
                 canEdit = true;
             }
         }
-
-        // Cannot edit if POR_CREAR (should not normally happen — editor is opened only
-        // after Crear)
         if (currentDocument.getStatus() == DocumentStatus.POR_CREAR) {
-            canEdit = false;
+            canEdit = false; // should not happen via normal flow, but guard anyway
         }
 
+        // ── Editor ───────────────────────────────────────────────────────────
+        editor.setValue(currentDocument.getContent() != null ? currentDocument.getContent() : "");
         editor.setReadOnly(!canEdit);
-        saveButton.setVisible(canEdit || canRate);
+
+        // ── Rating field + save button ─────────────────────────────────────
+        ratingField.setValue(currentDocument.getRating());
+        if (canRate) {
+            // Program director: field editable, dedicated save button shown
+            ratingField.setReadOnly(false);
+            ratingField.setVisible(true);
+            saveRatingButton.setVisible(true);
+        } else if (currentDocument.getRating() != null) {
+            // Others who can see doc: field read-only, value shown, no save button
+            ratingField.setReadOnly(true);
+            ratingField.setVisible(true);
+            saveRatingButton.setVisible(false);
+        } else {
+            // No rating yet and user cannot rate: hide both
+            ratingField.setVisible(false);
+            saveRatingButton.setVisible(false);
+        }
+
+        // ── Main save button (content only) ───────────────────────────────
+        saveButton.setVisible(canEdit);
     }
 
+    /** Saves only the document content (not the rating). */
     private void saveDocument() {
         try {
             currentDocument.setContent(editor.getValue());
-            currentDocument.setRating(ratingField.getValue());
             currentDocument = documentService.createOrUpdate(currentDocument);
             Notification.show("Documento guardado");
         } catch (Exception e) {
-            Notification.show(
-                    "Error al guardar el documento: " + e.getMessage(),
-                    5000,
-                    Notification.Position.MIDDLE);
+            Notification.show("Error al guardar el documento: " + e.getMessage(),
+                    5000, Notification.Position.MIDDLE);
+        }
+    }
+
+    /** Saves only the rating (program director action). */
+    private void saveRating() {
+        try {
+            currentDocument.setRating(ratingField.getValue());
+            currentDocument = documentService.createOrUpdate(currentDocument);
+            Notification.show("Valoración guardada");
+        } catch (Exception e) {
+            Notification.show("Error al guardar la valoración: " + e.getMessage(),
+                    5000, Notification.Position.MIDDLE);
         }
     }
 
