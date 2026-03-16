@@ -186,6 +186,10 @@ public class DocumentService {
         return documentRepository.findByProjectId(projectId);
     }
 
+    public List<DocumentVersion> getVersions(Long documentId) {
+        return documentVersionRepository.findByDocumentIdOrderByCreatedAtDesc(documentId);
+    }
+
     /**
      * Returns a map of DocumentType → Document for a project, with one entry per
      * type.
