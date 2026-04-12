@@ -1,8 +1,11 @@
 package com.example.examplefeature.ui;
 
+import java.util.List;
+
 import com.example.base.ui.MainLayout;
-import com.example.manager.Manager;
-import com.example.manager.ManagerService;
+import com.example.user.User;
+import com.example.user.UserService;
+import com.example.user.Role;
 import com.example.portfolio.Portfolio;
 import com.example.portfolio.PortfolioService;
 import com.example.pmo.PMO;
@@ -20,20 +23,23 @@ import com.vaadin.flow.router.Menu;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 
+import jakarta.annotation.security.RolesAllowed;
+
 @Route(value = "pmo", layout = MainLayout.class)
 @PageTitle("Oficina de Proyectos")
 @Menu(order = 2, icon = "vaadin:chart-timeline", title = "Oficina de Proyectos")
+@RolesAllowed("ADMIN")
 public class PmoView extends VerticalLayout {
 
     private final PMOService pmoService;
     private final PortfolioService portfolioService;
-    private final ManagerService managerService;
+    private final UserService userService;
     private final Grid<PMO> grid = new Grid<>(PMO.class);
 
-    public PmoView(PMOService pmoService, PortfolioService portfolioService, ManagerService managerService) {
+    public PmoView(PMOService pmoService, PortfolioService portfolioService, UserService userService) {
         this.pmoService = pmoService;
         this.portfolioService = portfolioService;
-        this.managerService = managerService;
+        this.userService = userService;
 
         setSizeFull();
         configureGrid();
@@ -45,24 +51,30 @@ public class PmoView extends VerticalLayout {
     private void configureGrid() {
         grid.setSizeFull();
         grid.removeAllColumns();
-        grid.addColumn(PMO::getId).setHeader("ID");
-        grid.addColumn(PMO::getName).setHeader("Nombre");
+        grid.addColumn(PMO::getId).setHeader("ID").setWidth("60px").setFlexGrow(0);
+        grid.addColumn(PMO::getName).setHeader("Nombre").setFlexGrow(2);
         grid.addColumn(pmo -> pmo.getPortfolio() != null ? pmo.getPortfolio().getName() : "Sin Portafolio")
-                .setHeader("Portafolio");
+                .setHeader("Portafolio").setFlexGrow(1);
         grid.addColumn(pmo -> pmo.getDirector() != null ? pmo.getDirector().getName() : "Sin Director")
-                .setHeader("Director");
+                .setHeader("Director").setFlexGrow(1);
+
+        grid.asSingleSelect().addValueChangeListener(event -> {
+            if (event.getValue() != null) {
+                openPmoDialog(event.getValue());
+            }
+        });
     }
 
     private HorizontalLayout createToolbar() {
         Button addPmoButton = new Button("Añadir PMO");
-        addPmoButton.addClickListener(e -> openCreatePmoDialog());
+        addPmoButton.addClickListener(e -> openPmoDialog(null));
 
         return new HorizontalLayout(addPmoButton);
     }
 
-    private void openCreatePmoDialog() {
+    private void openPmoDialog(PMO pmo) {
         Dialog dialog = new Dialog();
-        dialog.setHeaderTitle("Nueva PMO");
+        dialog.setHeaderTitle(pmo == null ? "Nueva PMO" : "Editar PMO");
 
         TextField nameField = new TextField("Nombre");
 
@@ -70,9 +82,15 @@ public class PmoView extends VerticalLayout {
         portfolioComboBox.setItems(portfolioService.getAll());
         portfolioComboBox.setItemLabelGenerator(Portfolio::getName);
 
-        ComboBox<Manager> directorComboBox = new ComboBox<>("Director");
-        directorComboBox.setItems(managerService.getAll());
-        directorComboBox.setItemLabelGenerator(Manager::getName);
+        ComboBox<User> directorComboBox = new ComboBox<>("Director");
+        directorComboBox.setItems(userService.findAllByRoles(List.of(Role.MANAGER, Role.ADMIN)));
+        directorComboBox.setItemLabelGenerator(User::getName);
+
+        if (pmo != null) {
+            nameField.setValue(pmo.getName());
+            portfolioComboBox.setValue(pmo.getPortfolio());
+            directorComboBox.setValue(pmo.getDirector());
+        }
 
         VerticalLayout dialogLayout = new VerticalLayout(nameField, portfolioComboBox, directorComboBox);
         dialog.add(dialogLayout);
@@ -83,23 +101,50 @@ public class PmoView extends VerticalLayout {
                 return;
             }
 
-            PMO newPmo = new PMO();
-            newPmo.setName(nameField.getValue());
-            newPmo.setPortfolio(portfolioComboBox.getValue());
-            newPmo.setDirector(directorComboBox.getValue());
+            try {
+                PMO pmoToSave = pmo == null ? new PMO() : pmo;
+                pmoToSave.setName(nameField.getValue());
+                pmoToSave.setPortfolio(portfolioComboBox.getValue());
+                pmoToSave.setDirector(directorComboBox.getValue());
 
-            pmoService.createOrUpdate(newPmo);
-            updateList();
-            dialog.close();
-            Notification.show("PMO creada exitosamente");
+                pmoService.createOrUpdate(pmoToSave);
+                updateList();
+                dialog.close();
+                Notification.show("PMO guardada exitosamente");
+            } catch (SecurityException ex) {
+                Notification.show("Error: " + ex.getMessage(), 5000, Notification.Position.MIDDLE);
+            }
         });
 
         Button cancelButton = new Button("Cancelar", e -> dialog.close());
 
+        Button deleteButton = new Button("Eliminar", e -> {
+            if (pmo != null) {
+                try {
+                    pmoService.delete(pmo.getId());
+                    updateList();
+                    dialog.close();
+                    Notification.show("PMO eliminada exitosamente");
+                } catch (SecurityException ex) {
+                    Notification.show("Error: " + ex.getMessage(), 5000, Notification.Position.MIDDLE);
+                }
+            }
+        });
+        deleteButton.getStyle().set("color", "red");
+
         dialog.getFooter().add(cancelButton);
+        if (pmo != null) {
+            dialog.getFooter().add(deleteButton);
+        }
         dialog.getFooter().add(saveButton);
 
         dialog.open();
+
+        dialog.addOpenedChangeListener(e -> {
+            if (!e.isOpened()) {
+                grid.asSingleSelect().clear();
+            }
+        });
     }
 
     private void updateList() {

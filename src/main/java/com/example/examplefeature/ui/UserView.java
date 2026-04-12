@@ -3,6 +3,10 @@ package com.example.examplefeature.ui;
 import com.example.base.ui.MainLayout;
 import com.example.user.User;
 import com.example.user.UserService;
+import com.example.user.Role;
+import com.example.security.PasswordGenerator;
+import com.example.security.SecurityService;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.grid.Grid;
@@ -15,16 +19,27 @@ import com.vaadin.flow.router.Menu;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 
+import jakarta.annotation.security.RolesAllowed;
+
 @Route(value = "usuarios", layout = MainLayout.class)
 @PageTitle("Usuarios")
-@Menu(order = 4, icon = "vaadin:users", title = "Usuarios")
+@Menu(order = 2, icon = "vaadin:users", title = "Usuarios")
+@RolesAllowed({ "ADMIN", "MANAGER" })
 public class UserView extends VerticalLayout {
 
     private final UserService userService;
+    private final SecurityService securityService;
     private final Grid<User> grid = new Grid<>(User.class);
 
-    public UserView(UserService userService) {
+    private final PasswordEncoder passwordEncoder;
+    private final PasswordGenerator passwordGenerator;
+
+    public UserView(UserService userService, PasswordEncoder passwordEncoder, PasswordGenerator passwordGenerator,
+            SecurityService securityService) {
         this.userService = userService;
+        this.passwordEncoder = passwordEncoder;
+        this.passwordGenerator = passwordGenerator;
+        this.securityService = securityService;
 
         setSizeFull();
         configureGrid();
@@ -36,18 +51,104 @@ public class UserView extends VerticalLayout {
     private void configureGrid() {
         grid.setSizeFull();
         grid.removeAllColumns();
-        grid.addColumn(User::getId).setHeader("ID");
-        grid.addColumn(User::getName).setHeader("Nombre");
-        grid.addColumn(User::getUvus).setHeader("UVUS");
+        grid.addColumn(User::getId).setHeader("ID").setWidth("60px").setFlexGrow(0);
+        grid.addColumn(User::getName).setHeader("Nombre").setFlexGrow(2);
+        grid.addColumn(User::getUvus).setHeader("UVUS").setFlexGrow(1);
         grid.addColumn(user -> user.getProject() != null ? user.getProject().getName() : "Sin Proyecto")
-                .setHeader("Proyecto");
+                .setHeader("Proyecto").setFlexGrow(1);
+
+        grid.asSingleSelect().addValueChangeListener(event -> {
+            if (event.getValue() != null) {
+                openUserDetailDialog(event.getValue());
+            }
+        });
     }
 
     private HorizontalLayout createToolbar() {
-        Button addUserButton = new Button("Añadir Usuario");
-        addUserButton.addClickListener(e -> openCreateUserDialog());
+        HorizontalLayout toolbar = new HorizontalLayout();
 
-        return new HorizontalLayout(addUserButton);
+        // Only PMO Directors can add new Users (Role.USER)
+        // Admins manage Managers/Admins in GestorView
+        if (securityService.isPmoDirector()) {
+            Button addUserButton = new Button("Añadir Usuario");
+            addUserButton.addClickListener(e -> openCreateUserDialog());
+            toolbar.add(addUserButton);
+        }
+
+        return toolbar;
+    }
+
+    private void openUserDetailDialog(User user) {
+        Dialog dialog = new Dialog();
+        dialog.setHeaderTitle("Detalles del Usuario");
+
+        TextField nameField = new TextField("Nombre");
+        nameField.setValue(user.getName());
+        nameField.setReadOnly(true);
+
+        TextField uvusField = new TextField("UVUS");
+        uvusField.setValue(user.getUvus());
+        uvusField.setReadOnly(true);
+
+        TextField projectField = new TextField("Proyecto");
+        projectField.setValue(user.getProject() != null ? user.getProject().getName() : "Sin Proyecto");
+        projectField.setReadOnly(true);
+
+        VerticalLayout dialogLayout = new VerticalLayout(nameField, uvusField, projectField);
+        dialog.add(dialogLayout);
+
+        Button closeButton = new Button("Cerrar", e -> dialog.close());
+        dialog.getFooter().add(closeButton);
+
+        // Only PMO Directors can delete Users (Role.USER)
+        if (securityService.isPmoDirector()) {
+            Button deleteButton = new Button("Eliminar", e -> {
+                try {
+                    if (userService.hasAssignedEntities(user.getId())) {
+                        Dialog confirmDialog = new Dialog();
+                        confirmDialog.setHeaderTitle("Eliminar Usuario");
+                        confirmDialog.add(
+                                "Este usuario está asignado como director o sponsor en otros elementos. ¿Desea desasignarlo y eliminarlo?");
+
+                        Button confirmDeleteButton = new Button("Eliminar", event -> {
+                            try {
+                                userService.deleteSafe(user.getId());
+                                updateList();
+                                dialog.close();
+                                confirmDialog.close();
+                                Notification.show("Usuario eliminado y desasignado exitosamente");
+                            } catch (SecurityException ex) {
+                                Notification.show("Error: " + ex.getMessage(), 5000, Notification.Position.MIDDLE);
+                            }
+                        });
+                        confirmDeleteButton.getStyle().set("color", "red");
+
+                        Button cancelDeleteButton = new Button("Cancelar", event -> confirmDialog.close());
+
+                        confirmDialog.getFooter().add(cancelDeleteButton);
+                        confirmDialog.getFooter().add(confirmDeleteButton);
+                        confirmDialog.open();
+                    } else {
+                        userService.delete(user.getId());
+                        updateList();
+                        dialog.close();
+                        Notification.show("Usuario eliminado exitosamente");
+                    }
+                } catch (SecurityException ex) {
+                    Notification.show("Error: " + ex.getMessage(), 5000, Notification.Position.MIDDLE);
+                }
+            });
+            deleteButton.getStyle().set("color", "red");
+            dialog.getFooter().add(deleteButton);
+        }
+
+        dialog.open();
+
+        dialog.addOpenedChangeListener(e -> {
+            if (!e.isOpened()) {
+                grid.asSingleSelect().clear();
+            }
+        });
     }
 
     private void openCreateUserDialog() {
@@ -69,12 +170,17 @@ public class UserView extends VerticalLayout {
             User newUser = new User();
             newUser.setName(nameField.getValue());
             newUser.setUvus(uvusField.getValue());
-            // Project is optional now and removed from form
+            newUser.setRole(Role.USER); // Explicitly set Role.USER
+
+            String generatedPassword = passwordGenerator.generateStrongPassword();
+            newUser.setPassword(passwordEncoder.encode(generatedPassword));
 
             userService.createOrUpdate(newUser);
             updateList();
             dialog.close();
-            Notification.show("Usuario creado exitosamente");
+
+            Notification notification = Notification.show("Usuario creado. Contraseña: " + generatedPassword);
+            notification.setDuration(10000);
         });
 
         Button cancelButton = new Button("Cancelar", e -> dialog.close());

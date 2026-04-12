@@ -2,43 +2,51 @@ package com.example.project;
 
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.example.manager.Manager;
-import com.example.manager.ManagerService;
-import com.example.portfolio.Portfolio;
-import com.example.portfolio.PortfolioService;
-import com.example.program.Program;
-import com.example.program.ProgramService;
 import com.example.user.User;
 import com.example.user.UserService;
+import com.example.user.Role;
+import com.example.program.Program;
+import com.example.program.ProgramService;
+import com.example.portfolio.Portfolio;
+import com.example.portfolio.PortfolioService;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @Transactional
 class ProjectServiceTest {
-    
+
     @Autowired
     ProjectService projectService;
     @Autowired
     ProgramService programService;
     @Autowired
     PortfolioService portfolioService;
-    @Autowired
-    ManagerService managerService;
+
     @Autowired
     UserService userService;
 
+    @org.junit.jupiter.api.BeforeEach
+    public void setupSecurity() {
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken("system", "pass",
+                        java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                                "ROLE_SYSTEM_ADMIN"))));
+    }
+
     @Test
     public void testCreateOrUpdate() {
-        var manager = new Manager();
+        var manager = new User();
         manager.setName("Director Name");
         manager.setUvus("director_uvus");
-        manager.setIsAdmin(true);
-        managerService.createOrUpdate(manager);
+        manager.setRole(Role.MANAGER);
+        userService.createOrUpdate(manager);
         var portfolio = new Portfolio();
         portfolio.setName("Portfolio Name");
         portfolio.setDirector(manager);
@@ -60,19 +68,87 @@ class ProjectServiceTest {
         project.setDirector(director);
         var createdProject = projectService.createOrUpdate(project);
         assertTrue(
-            createdProject.getName().equals(name) &&
-            createdProject.getProgram().equals(program) &&
-            createdProject.getSponsor().equals(manager) &&
-            createdProject.getDirector().equals(director));
+                createdProject.getName().equals(name) &&
+                        createdProject.getSponsor().equals(manager) &&
+                        createdProject.getDirector().equals(director));
+    }
+
+    @Test
+    public void testCreateWithoutDirector() {
+        var manager = new User();
+        manager.setName("Manager Name");
+        manager.setUvus("manager_uvus");
+        manager.setRole(Role.MANAGER);
+        userService.createOrUpdate(manager);
+
+        var portfolio = new Portfolio();
+        portfolio.setName("Portfolio Name");
+        portfolio.setDirector(manager);
+        portfolioService.createOrUpdate(portfolio);
+
+        var program = new Program();
+        program.setName("Program Name");
+        program.setPortfolio(portfolio);
+        program.setDirector(manager);
+        programService.createOrUpdate(program);
+
+        var project = new Project();
+        project.setName("Project No Director");
+        project.setProgram(program);
+        project.setSponsor(manager);
+        // No director set
+
+        var createdProject = projectService.createOrUpdate(project);
+        assertNotNull(createdProject.getId());
+        assertNull(createdProject.getDirector());
+    }
+
+    @Test
+    public void testCreateTwoProjectsSameDirector() {
+        var manager = new User();
+        manager.setName("Common Director");
+        manager.setUvus("common_dir");
+        manager.setRole(Role.MANAGER);
+        userService.createOrUpdate(manager);
+
+        var portfolio = new Portfolio();
+        portfolio.setName("P Portfolio");
+        portfolio.setDirector(manager);
+        portfolioService.createOrUpdate(portfolio);
+
+        var program = new Program();
+        program.setName("P Program");
+        program.setPortfolio(portfolio);
+        program.setDirector(manager);
+        programService.createOrUpdate(program);
+
+        var project1 = new Project();
+        project1.setName("Project 1");
+        project1.setProgram(program);
+        project1.setSponsor(manager);
+        project1.setDirector(manager);
+        projectService.createOrUpdate(project1);
+
+        var project2 = new Project();
+        project2.setName("Project 2");
+        project2.setProgram(program);
+        project2.setSponsor(manager);
+        project2.setDirector(manager);
+
+        // This should fail if Unique Constraint exists
+        var createdProject2 = projectService.createOrUpdate(project2);
+
+        assertNotNull(createdProject2.getId());
+        assertTrue(createdProject2.getDirector().equals(manager));
     }
 
     @Test
     public void testGet() {
-        var manager = new Manager();
+        var manager = new User();
         manager.setName("Director Name");
         manager.setUvus("director_uvus");
-        manager.setIsAdmin(true);
-        managerService.createOrUpdate(manager);
+        manager.setRole(Role.MANAGER);
+        userService.createOrUpdate(manager);
         var portfolio = new Portfolio();
         portfolio.setName("Portfolio Name");
         portfolio.setDirector(manager);
@@ -95,16 +171,16 @@ class ProjectServiceTest {
         var createdProject = projectService.createOrUpdate(project);
         var fetchedProject = projectService.get(createdProject.getId());
         assertTrue(
-            createdProject.equals(fetchedProject));
+                createdProject.equals(fetchedProject));
     }
 
     @Test
     public void testDelete() {
-        var manager = new Manager();
+        var manager = new User();
         manager.setName("Director Name");
         manager.setUvus("director_uvus");
-        manager.setIsAdmin(true);
-        managerService.createOrUpdate(manager);
+        manager.setRole(Role.MANAGER);
+        userService.createOrUpdate(manager);
         var portfolio = new Portfolio();
         portfolio.setName("Portfolio Name");
         portfolio.setDirector(manager);
@@ -125,6 +201,15 @@ class ProjectServiceTest {
         project.setSponsor(manager);
         project.setDirector(director);
         var createdProject = projectService.createOrUpdate(project);
+
+        // Set auth context to manager (who is the program director) for deletion
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+        org.springframework.security.core.context.SecurityContextHolder.getContext()
+                .setAuthentication(new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                        "director_uvus", "password",
+                        java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                                "ROLE_MANAGER"))));
+
         projectService.delete(createdProject.getId());
         var fetchedProject = projectService.get(createdProject.getId());
         assertNull(fetchedProject);
@@ -132,11 +217,11 @@ class ProjectServiceTest {
 
     @Test
     public void testGetAll() {
-        var manager = new Manager();
+        var manager = new User();
         manager.setName("Director Name");
         manager.setUvus("director_uvus");
-        manager.setIsAdmin(true);
-        managerService.createOrUpdate(manager);
+        manager.setRole(Role.MANAGER);
+        userService.createOrUpdate(manager);
         var portfolio = new Portfolio();
         portfolio.setName("Portfolio Name");
         portfolio.setDirector(manager);
@@ -168,9 +253,179 @@ class ProjectServiceTest {
         var p2 = projectService.createOrUpdate(project2);
         var allProjects = projectService.getAll();
         assertTrue(
-            !allProjects.isEmpty() &&
-            allProjects.contains(p1) &&
-            allProjects.contains(p2) &&
-            allProjects.equals(projectService.getAll()));
+                !allProjects.isEmpty() &&
+                        allProjects.contains(p1) &&
+                        allProjects.contains(p2) &&
+                        allProjects.equals(projectService.getAll()));
+    }
+
+    // ===== SECURITY TESTS =====
+
+    @WithMockUser(username = "admin", roles = { "ADMIN" })
+    @Test
+    public void testCreateOrUpdateAsAdmin() {
+        var admin = new User();
+        admin.setName("Admin User");
+        admin.setUvus("admin");
+        admin.setRole(Role.ADMIN);
+        userService.createOrUpdate(admin);
+
+        var portfolio = new Portfolio();
+        portfolio.setName("Test Portfolio");
+        portfolio.setDirector(admin);
+        portfolioService.createOrUpdate(portfolio);
+
+        var program = new Program();
+        program.setName("Test Program");
+        program.setPortfolio(portfolio);
+        program.setDirector(admin);
+        programService.createOrUpdate(program);
+
+        var director = new User();
+        director.setName("Project Director");
+        director.setUvus("proj_director");
+        userService.createOrUpdate(director);
+
+        var project = new Project();
+        project.setName("Admin Project");
+        project.setProgram(program);
+        project.setSponsor(admin);
+        project.setDirector(director);
+
+        var createdProject = projectService.createOrUpdate(project);
+        assertNotNull(createdProject);
+        assertTrue(createdProject.getName().equals("Admin Project"));
+    }
+
+    @Test
+    public void testCreateOrUpdateAsManager() {
+        var manager = new User();
+        manager.setName("Manager User");
+        manager.setUvus("manager");
+        manager.setRole(Role.MANAGER);
+        userService.createOrUpdate(manager);
+
+        // Create dependencies without auth
+        var portfolio = new Portfolio();
+        portfolio.setName("Test Portfolio");
+        portfolio.setDirector(manager);
+        var createdPortfolio = portfolioService.createOrUpdate(portfolio);
+
+        var program = new Program();
+        program.setName("Test Program");
+        program.setPortfolio(createdPortfolio);
+        program.setDirector(manager);
+        var createdProgram = programService.createOrUpdate(program);
+
+        var director = new User();
+        director.setName("Project Director");
+        director.setUvus("proj_director");
+        userService.createOrUpdate(director);
+
+        // Clear and set manager context
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+        org.springframework.security.core.context.SecurityContextHolder.getContext()
+                .setAuthentication(new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                        "manager", "password",
+                        java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                                "ROLE_MANAGER"))));
+
+        var project = new Project();
+        project.setName("Manager Project");
+        project.setProgram(createdProgram);
+        project.setSponsor(manager);
+        project.setDirector(director);
+
+        var createdProject = projectService.createOrUpdate(project);
+        assertNotNull(createdProject);
+        assertTrue(createdProject.getName().equals("Manager Project"));
+
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    public void testDeleteAsAdmin() {
+        var admin = new User();
+        admin.setName("Admin User");
+        admin.setUvus("admin");
+        admin.setRole(Role.ADMIN);
+        userService.createOrUpdate(admin);
+
+        var portfolio = new Portfolio();
+        portfolio.setName("Test Portfolio");
+        portfolio.setDirector(admin);
+        portfolioService.createOrUpdate(portfolio);
+
+        var program = new Program();
+        program.setName("Test Program");
+        program.setPortfolio(portfolio);
+        program.setDirector(admin);
+        programService.createOrUpdate(program);
+
+        var director = new User();
+        director.setName("Project Director");
+        director.setUvus("proj_director");
+        userService.createOrUpdate(director);
+
+        var project = new Project();
+        project.setName("Project to Delete");
+        project.setProgram(program);
+        project.setSponsor(admin);
+        project.setDirector(director);
+        var createdProject = projectService.createOrUpdate(project);
+
+        // Set auth context to admin user
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+        org.springframework.security.core.context.SecurityContextHolder.getContext()
+                .setAuthentication(new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                        "admin", "password",
+                        java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                                "ROLE_ADMIN"))));
+
+        projectService.delete(createdProject.getId());
+        assertNull(projectService.get(createdProject.getId()));
+    }
+
+    @Test
+    public void testDeleteAsManager() {
+        var manager = new User();
+        manager.setName("Manager User");
+        manager.setUvus("manager");
+        manager.setRole(Role.MANAGER);
+        userService.createOrUpdate(manager);
+
+        var portfolio = new Portfolio();
+        portfolio.setName("Test Portfolio");
+        portfolio.setDirector(manager);
+        var createdPortfolio = portfolioService.createOrUpdate(portfolio);
+
+        var program = new Program();
+        program.setName("Test Program");
+        program.setPortfolio(createdPortfolio);
+        program.setDirector(manager);
+        var createdProgram = programService.createOrUpdate(program);
+
+        var director = new User();
+        director.setName("Project Director");
+        director.setUvus("proj_director");
+        userService.createOrUpdate(director);
+
+        var project = new Project();
+        project.setName("Project to Delete");
+        project.setProgram(createdProgram);
+        project.setSponsor(manager);
+        project.setDirector(director);
+        var createdProject = projectService.createOrUpdate(project);
+
+        // Set auth context to manager (who is the program director) for deletion
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+        org.springframework.security.core.context.SecurityContextHolder.getContext()
+                .setAuthentication(new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                        "manager", "password",
+                        java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                                "ROLE_MANAGER"))));
+
+        projectService.delete(createdProject.getId());
+        assertNull(projectService.get(createdProject.getId()));
     }
 }

@@ -1,8 +1,8 @@
 package com.example.project;
 
-import com.example.manager.Manager;
-import com.example.program.Program;
 import com.example.user.User;
+import com.example.program.Program;
+import com.example.communication.Ccc;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
@@ -10,7 +10,7 @@ import jakarta.validation.constraints.*;
 @Entity
 @Table(name = "project")
 public class Project {
-    
+
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE)
     @Column(name = "project_id", nullable = false)
@@ -21,9 +21,8 @@ public class Project {
     @NotBlank
     private String name;
 
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "director_id", nullable = false, unique = true)
-    @NotNull
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "director_id")
     private User director;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -32,9 +31,11 @@ public class Project {
     private Program program;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "sponsor_id", nullable = false)
-    @NotNull
-    private Manager sponsor;
+    @JoinColumn(name = "sponsor_id")
+    private User sponsor;
+
+    @OneToOne(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Ccc ccc;
 
     public Long getId() {
         return id;
@@ -68,11 +69,37 @@ public class Project {
         this.program = program;
     }
 
-    public Manager getSponsor() {
+    public User getSponsor() {
         return sponsor;
     }
 
-    public void setSponsor(Manager sponsor) {
+    public void setSponsor(User sponsor) {
         this.sponsor = sponsor;
+    }
+
+    public Ccc getCcc() {
+        return ccc;
+    }
+
+    public void setCcc(Ccc ccc) {
+        this.ccc = ccc;
+        if (ccc != null && ccc.getProject() != this) {
+            ccc.setProject(this);
+        }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o)
+            return true;
+        if (!(o instanceof Project))
+            return false;
+        Project project = (Project) o;
+        return getId() != null && getId().equals(project.getId());
+    }
+
+    @Override
+    public int hashCode() {
+        return getClass().hashCode();
     }
 }

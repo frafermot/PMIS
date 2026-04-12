@@ -1,0 +1,305 @@
+package com.example.examplefeature.ui;
+
+import com.example.base.ui.MainLayout;
+import com.example.portfolio.Portfolio;
+import com.example.portfolio.PortfolioService;
+import com.example.program.Program;
+import com.example.program.ProgramService;
+import com.example.user.User;
+import com.example.user.UserService;
+import com.example.user.Role;
+import com.example.security.SecurityService;
+import com.vaadin.flow.component.UI;
+import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.button.ButtonVariant;
+import com.vaadin.flow.component.dialog.Dialog;
+import com.vaadin.flow.component.grid.Grid;
+import com.vaadin.flow.component.html.H2;
+import com.vaadin.flow.component.html.H3;
+import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
+import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.select.Select;
+import com.vaadin.flow.component.textfield.TextField;
+import com.vaadin.flow.router.BeforeEvent;
+import com.vaadin.flow.router.HasUrlParameter;
+import com.vaadin.flow.router.PageTitle;
+import com.vaadin.flow.router.Route;
+import jakarta.annotation.security.RolesAllowed;
+
+import java.util.List;
+
+@Route(value = "portfolio", layout = MainLayout.class)
+@PageTitle("Detalle de Portfolio")
+@RolesAllowed({ "ADMIN", "MANAGER" })
+public class PortfolioDetailView extends VerticalLayout implements HasUrlParameter<Long> {
+
+    private final PortfolioService portfolioService;
+    private final ProgramService programService;
+    private final UserService userService;
+    private final SecurityService securityService;
+    private Portfolio currentPortfolio;
+    private final Grid<Program> programGrid = new Grid<>(Program.class, false);
+
+    private TextField nameField;
+    private Select<User> directorSelect;
+
+    public PortfolioDetailView(PortfolioService portfolioService, ProgramService programService,
+            UserService userService, SecurityService securityService) {
+        this.portfolioService = portfolioService;
+        this.programService = programService;
+        this.userService = userService;
+        this.securityService = securityService;
+
+        setSizeFull();
+        setPadding(true);
+        setSpacing(true);
+    }
+
+    @Override
+    public void setParameter(BeforeEvent event, Long portfolioId) {
+        currentPortfolio = portfolioService.get(portfolioId);
+
+        if (currentPortfolio == null) {
+            Notification.show("Portfolio no encontrado");
+            UI.getCurrent().navigate("portfolios");
+            return;
+        }
+
+        removeAll();
+        buildView();
+    }
+
+    private void buildView() {
+        // Breadcrumb / Navigation
+        Button backButton = new Button("← Volver a Portfolios", e -> {
+            UI.getCurrent().navigate("portfolios");
+        });
+        backButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
+        add(backButton);
+
+        // Portfolio Info Section
+        add(new H2("Información del Portfolio"));
+
+        // Only show edit form if user is admin OR the portfolio director
+        boolean isPortfolioDirector = currentPortfolio.getDirector() != null &&
+                securityService.getCurrentUser() != null &&
+                currentPortfolio.getDirector().getId().equals(securityService.getCurrentUser().getId());
+
+        if (isPortfolioDirector) {
+            nameField = new TextField("Nombre");
+            nameField.setValue(currentPortfolio.getName());
+            nameField.setWidthFull();
+
+            directorSelect = new Select<>();
+            directorSelect.setLabel("Director");
+            directorSelect.setItems(userService.findAllByRoles(List.of(Role.MANAGER, Role.ADMIN)));
+            directorSelect.setItemLabelGenerator(User::getName);
+            directorSelect.setValue(currentPortfolio.getDirector());
+            directorSelect.setWidthFull();
+
+            Button saveButton = new Button("Guardar Cambios", e -> savePortfolio());
+            saveButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+
+            HorizontalLayout formLayout = new HorizontalLayout(nameField, directorSelect, saveButton);
+            formLayout.setWidthFull();
+            formLayout.setAlignItems(Alignment.END);
+            add(formLayout);
+        } else {
+            // Read-only display for non-directors
+            TextField readOnlyName = new TextField("Nombre");
+            readOnlyName.setValue(currentPortfolio.getName());
+            readOnlyName.setReadOnly(true);
+            readOnlyName.setWidthFull();
+
+            TextField readOnlyDirector = new TextField("Director");
+            readOnlyDirector.setValue(
+                    currentPortfolio.getDirector() != null ? currentPortfolio.getDirector().getName() : "Sin director");
+            readOnlyDirector.setReadOnly(true);
+            readOnlyDirector.setWidthFull();
+
+            HorizontalLayout readOnlyLayout = new HorizontalLayout(readOnlyName, readOnlyDirector);
+            readOnlyLayout.setWidthFull();
+            add(readOnlyLayout);
+        }
+
+        // Programs Section
+        add(new H3("Programas de este Portfolio"));
+
+        configureGrid();
+
+        // Only show Add Program button if user is the portfolio director
+        if (isPortfolioDirector) {
+            Button addProgramButton = new Button("Añadir Programa", e -> openCreateProgramDialog());
+            addProgramButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+            add(addProgramButton);
+        }
+
+        add(programGrid);
+        updateProgramList();
+    }
+
+    private void configureGrid() {
+        programGrid.setSizeFull();
+        programGrid.addColumn(Program::getId).setHeader("ID").setWidth("60px").setFlexGrow(0);
+        programGrid.addColumn(Program::getName).setHeader("Nombre").setFlexGrow(2);
+        programGrid
+                .addColumn(program -> program.getDirector() != null ? program.getDirector().getName() : "Sin Director")
+                .setHeader("Director").setFlexGrow(1);
+
+        // Columna de Editar
+        programGrid.addComponentColumn(program -> {
+            Button editButton = new Button("Editar", e -> openEditProgramDialog(program));
+            editButton.addThemeVariants(com.vaadin.flow.component.button.ButtonVariant.LUMO_SMALL,
+                    com.vaadin.flow.component.button.ButtonVariant.LUMO_PRIMARY);
+            // Only show button if user is the portfolio director
+            boolean isDirector = currentPortfolio.getDirector() != null &&
+                    securityService.getCurrentUser() != null &&
+                    currentPortfolio.getDirector().getId().equals(securityService.getCurrentUser().getId());
+            editButton.setVisible(isDirector);
+            return editButton;
+        }).setHeader("").setWidth("80px").setFlexGrow(0);
+
+        // Columna de Borrar
+        programGrid.addComponentColumn(program -> {
+            Button deleteButton = new Button("Borrar", e -> deleteProgram(program));
+            deleteButton.addThemeVariants(com.vaadin.flow.component.button.ButtonVariant.LUMO_SMALL,
+                    com.vaadin.flow.component.button.ButtonVariant.LUMO_ERROR);
+            // Only show button if user is the portfolio director
+            boolean isDirector = currentPortfolio.getDirector() != null &&
+                    securityService.getCurrentUser() != null &&
+                    currentPortfolio.getDirector().getId().equals(securityService.getCurrentUser().getId());
+            deleteButton.setVisible(isDirector);
+            return deleteButton;
+        }).setHeader("").setWidth("80px").setFlexGrow(0);
+
+        programGrid.asSingleSelect().addValueChangeListener(event -> {
+            if (event.getValue() != null) {
+                UI.getCurrent().navigate("program/" + event.getValue().getId());
+            }
+        });
+    }
+
+    private void savePortfolio() {
+        if (nameField.isEmpty() || directorSelect.isEmpty()) {
+            Notification.show("Por favor rellene todos los campos");
+            return;
+        }
+
+        try {
+            currentPortfolio.setName(nameField.getValue());
+            currentPortfolio.setDirector(directorSelect.getValue());
+            portfolioService.createOrUpdate(currentPortfolio);
+            Notification.show("Portfolio actualizado exitosamente");
+        } catch (SecurityException ex) {
+            Notification.show("Error: " + ex.getMessage(), 5000, Notification.Position.MIDDLE);
+        }
+    }
+
+    private void openCreateProgramDialog() {
+        Dialog dialog = new Dialog();
+        dialog.setHeaderTitle("Nuevo Programa");
+
+        TextField programNameField = new TextField("Nombre");
+        Select<User> programDirectorSelect = new Select<>();
+        programDirectorSelect.setLabel("Director");
+        programDirectorSelect.setItems(userService.findAllByRoles(List.of(Role.MANAGER, Role.ADMIN)));
+        programDirectorSelect.setItemLabelGenerator(User::getName);
+
+        VerticalLayout dialogLayout = new VerticalLayout(programNameField, programDirectorSelect);
+        dialog.add(dialogLayout);
+
+        Button saveButton = new Button("Guardar", e -> {
+            if (programNameField.isEmpty() || programDirectorSelect.isEmpty()) {
+                Notification.show("Por favor rellene todos los campos");
+                return;
+            }
+
+            Program newProgram = new Program();
+            newProgram.setName(programNameField.getValue());
+            newProgram.setDirector(programDirectorSelect.getValue());
+            newProgram.setPortfolio(currentPortfolio);
+
+            programService.createOrUpdate(newProgram);
+            updateProgramList();
+            dialog.close();
+            Notification.show("Programa creado exitosamente");
+        });
+
+        Button cancelButton = new Button("Cancelar", e -> dialog.close());
+
+        dialog.getFooter().add(cancelButton);
+        dialog.getFooter().add(saveButton);
+
+        dialog.open();
+    }
+
+    private void updateProgramList() {
+        List<Program> programs = programService.getByPortfolioId(currentPortfolio.getId());
+
+        // Filter programs for managers: show only programs where they are director
+        if (!securityService.isAdmin()) {
+            Long currentUserId = securityService.getCurrentUser() != null ? securityService.getCurrentUser().getId()
+                    : null;
+            if (currentUserId != null) {
+                programs = programs.stream()
+                        .filter(p -> p.getDirector() != null && p.getDirector().getId().equals(currentUserId))
+                        .toList();
+            }
+        }
+
+        programGrid.setItems(programs);
+    }
+
+    private void openEditProgramDialog(Program program) {
+        Dialog dialog = new Dialog();
+        dialog.setHeaderTitle("Editar Programa");
+
+        TextField programNameField = new TextField("Nombre");
+        programNameField.setValue(program.getName());
+
+        Select<User> programDirectorSelect = new Select<>();
+        programDirectorSelect.setLabel("Director");
+        programDirectorSelect.setItems(userService.findAllByRoles(List.of(Role.MANAGER, Role.ADMIN)));
+        programDirectorSelect.setItemLabelGenerator(User::getName);
+        programDirectorSelect.setValue(program.getDirector());
+
+        VerticalLayout dialogLayout = new VerticalLayout(programNameField, programDirectorSelect);
+        dialog.add(dialogLayout);
+
+        Button saveButton = new Button("Guardar", e -> {
+            if (programNameField.isEmpty() || programDirectorSelect.isEmpty()) {
+                Notification.show("Por favor rellene todos los campos");
+                return;
+            }
+
+            program.setName(programNameField.getValue());
+            program.setDirector(programDirectorSelect.getValue());
+
+            programService.createOrUpdate(program);
+            updateProgramList();
+            dialog.close();
+            Notification.show("Programa actualizado exitosamente");
+        });
+
+        Button cancelButton = new Button("Cancelar", e -> dialog.close());
+
+        dialog.getFooter().add(cancelButton);
+        dialog.getFooter().add(saveButton);
+
+        dialog.open();
+    }
+
+    private void deleteProgram(Program program) {
+        // Check if program has projects
+        if (programService.hasProjects(program.getId())) {
+            Notification.show("No se puede borrar el programa porque tiene proyectos asignados", 5000,
+                    Notification.Position.MIDDLE);
+            return;
+        }
+
+        programService.delete(program.getId());
+        updateProgramList();
+        Notification.show("Programa eliminado exitosamente");
+    }
+}

@@ -9,7 +9,6 @@ import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.Scroller;
 import com.vaadin.flow.component.sidenav.SideNav;
 import com.vaadin.flow.component.sidenav.SideNavItem;
-import com.vaadin.flow.router.Layout;
 import com.vaadin.flow.router.RouterLayout; // Necesario para el Footer
 import com.vaadin.flow.server.menu.MenuConfiguration; // Import opcional
 import com.vaadin.flow.server.menu.MenuEntry;
@@ -26,16 +25,27 @@ import com.vaadin.flow.theme.lumo.LumoUtility.Margin;
 import com.vaadin.flow.theme.lumo.LumoUtility.Padding;
 import com.vaadin.flow.theme.lumo.LumoUtility.TextColor;
 
-@Layout
-public final class MainLayout extends AppLayout implements RouterLayout { // Implementamos RouterLayout
+public class MainLayout extends AppLayout implements RouterLayout { // Implementamos RouterLayout
 
     // 1. ÁREA DE CONTENIDO
     // Este Div será el contenedor de tus vistas (PortfolioView, etc.)
     private final Div contentArea = new Div();
 
     // Constructor del Esqueleto
-    MainLayout() {
+    private final com.vaadin.flow.spring.security.AuthenticationContext authContext;
+    private final com.example.user.UserService userService;
+    private final com.example.notification.NotificationService notificationService;
+
+    // Constructor del Esqueleto
+    public MainLayout(com.vaadin.flow.spring.security.AuthenticationContext authContext,
+            com.example.user.UserService userService,
+            com.example.notification.NotificationService notificationService) {
+        this.authContext = authContext;
+        this.userService = userService;
+        this.notificationService = notificationService;
+
         setPrimarySection(Section.DRAWER);
+        setDrawerOpened(true); // Ensure drawer is open by default on login
 
         // 2. HEADER (Navbar - Barra Superior)
         // Creamos el botón "hamburguesa" y la cabecera (logo/título)
@@ -43,8 +53,22 @@ public final class MainLayout extends AppLayout implements RouterLayout { // Imp
         addToNavbar(new DrawerToggle(), appHeader);
 
         // 3. SIDEBAR (Drawer - Menú Lateral)
-        // Añadimos el menú navegable (que ya tenías)
-        addToDrawer(new Scroller(createSideNav()));
+        // Usamos un Flex Layout vertical para el Drawer
+        Div drawerContent = new Div();
+        drawerContent.addClassNames(Display.FLEX, FlexDirection.COLUMN, "h-full");
+
+        // Scroller para el menú (ocupa el espacio disponible)
+        Scroller scroller = new Scroller(createSideNav());
+        scroller.addClassNames(Flex.GROW);
+
+        drawerContent.add(scroller);
+
+        // Sección de Usuario (Footer del Drawer)
+        if (authContext.isAuthenticated()) {
+            drawerContent.add(createDrawerFooter());
+        }
+
+        addToDrawer(drawerContent);
 
         // 4. FOOTER y CONTENIDO
         // Creamos el footer
@@ -62,6 +86,33 @@ public final class MainLayout extends AppLayout implements RouterLayout { // Imp
         setContent(mainContentWrapper);
     }
 
+    private Div createDrawerFooter() {
+        Div footer = new Div();
+        footer.addClassNames(Display.FLEX, FlexDirection.COLUMN, Padding.MEDIUM, Gap.SMALL, "border-t");
+
+        authContext.getAuthenticatedUser(org.springframework.security.core.userdetails.UserDetails.class)
+                .ifPresent(userDetails -> {
+                    com.example.user.User user = userService.findByUvus(userDetails.getUsername());
+                    if (user != null) {
+                        Span name = new Span(user.getName());
+                        name.addClassNames(FontWeight.BOLD, FontSize.SMALL);
+
+                        Span uvus = new Span("@" + user.getUvus());
+                        uvus.addClassNames(TextColor.SECONDARY, FontSize.XSMALL);
+
+                        footer.add(name, uvus);
+                    }
+                });
+
+        com.vaadin.flow.component.button.Button logoutButton = new com.vaadin.flow.component.button.Button(
+                "Cerrar Sesión", VaadinIcon.SIGN_OUT.create());
+        logoutButton.addThemeVariants(com.vaadin.flow.component.button.ButtonVariant.LUMO_TERTIARY);
+        logoutButton.addClickListener(e -> authContext.logout());
+
+        footer.add(logoutButton);
+        return footer;
+    }
+
     // Cabecera (Logo y Nombre) - Ahora es horizontal
     private Div createHeader() {
         var appLogo = VaadinIcon.CUBES.create();
@@ -75,11 +126,71 @@ public final class MainLayout extends AppLayout implements RouterLayout { // Imp
         return header;
     }
 
-    // Menú Lateral (Sidebar) - Sin cambios
+    private SideNavItem notificationsItem;
+
+    public void updateNotificationBadge() {
+        if (notificationsItem == null)
+            return;
+
+        authContext.getAuthenticatedUser(org.springframework.security.core.userdetails.UserDetails.class)
+                .ifPresent(userDetails -> {
+                    com.example.user.User currentUser = userService.findByUvus(userDetails.getUsername());
+                    if (currentUser != null) {
+                        long unreadCount = notificationService.getUnreadCount(currentUser.getId());
+                        if (unreadCount > 0) {
+                            Span badge = new Span(String.valueOf(unreadCount));
+                            badge.getElement().getThemeList().add("badge error pill small");
+                            badge.getStyle().set("margin-left", "auto");
+                            notificationsItem.setSuffixComponent(badge);
+                        } else {
+                            notificationsItem.setSuffixComponent(null);
+                        }
+                    }
+                });
+    }
+
+    // Menú Lateral (Sidebar) - Filtrado por rol
     private SideNav createSideNav() {
         var nav = new SideNav();
         nav.addClassNames(Margin.Horizontal.MEDIUM);
-        MenuConfiguration.getMenuEntries().forEach(entry -> nav.addItem(createSideNavItem(entry)));
+
+        // Get current user role
+        authContext.getAuthenticatedUser(org.springframework.security.core.userdetails.UserDetails.class)
+                .ifPresent(userDetails -> {
+                    com.example.user.User currentUser = userService.findByUvus(userDetails.getUsername());
+                    if (currentUser != null) {
+                        com.example.user.Role userRole = currentUser.getRole();
+
+                        // Add menu entries based on role
+                        MenuConfiguration.getMenuEntries().forEach(entry -> {
+                            String title = entry.title();
+
+                            // Filter menu items based on role
+                            boolean shouldShow = true;
+
+                            if (title.equals("Registro de Gestores")) {
+                                // Only ADMIN can see Gestores
+                                shouldShow = userRole == com.example.user.Role.ADMIN;
+                            } else if (title.equals("Usuarios")) {
+                                // ADMIN and MANAGER can see Usuarios
+                                shouldShow = userRole == com.example.user.Role.ADMIN
+                                        || userRole == com.example.user.Role.MANAGER;
+                            }
+
+                            if (shouldShow) {
+                                nav.addItem(createSideNavItem(entry));
+                            }
+                        });
+
+                        // Add Notifications Link for everyone
+                        notificationsItem = new SideNavItem("Notificaciones", "notifications",
+                                VaadinIcon.BELL.create());
+                        updateNotificationBadge(); // Initial population
+
+                        nav.addItem(notificationsItem);
+                    }
+                });
+
         return nav;
     }
 

@@ -1,14 +1,19 @@
 package com.example.examplefeature.ui;
 
+import java.util.List;
+
 import com.example.base.ui.MainLayout;
-import com.example.manager.Manager;
-import com.example.manager.ManagerService;
+
+import com.example.security.SecurityService;
+import com.example.user.User;
+import com.example.user.UserService;
+import com.example.user.Role;
 import com.example.portfolio.Portfolio;
-import com.example.portfolio.PortfolioService;
+import com.example.portfolio.PortfolioRepository;
 import com.example.program.Program;
 import com.example.program.ProgramService;
 import com.vaadin.flow.component.button.Button;
-import com.vaadin.flow.component.combobox.ComboBox;
+import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.html.H2;
@@ -16,25 +21,28 @@ import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
-import com.vaadin.flow.router.Menu;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 
+import jakarta.annotation.security.RolesAllowed;
+
 @Route(value = "programas", layout = MainLayout.class)
 @PageTitle("Programas")
-@Menu(order = 4, icon = "vaadin:archives", title = "Programas")
+@RolesAllowed({ "ADMIN", "MANAGER" })
 public class ProgramView extends VerticalLayout {
 
     private final ProgramService programService;
-    private final PortfolioService portfolioService;
-    private final ManagerService managerService;
+    private final PortfolioRepository portfolioRepository;
+    private final UserService userService;
+    private final SecurityService securityService;
     private final Grid<Program> grid = new Grid<>(Program.class);
 
-    public ProgramView(ProgramService programService, PortfolioService portfolioService,
-            ManagerService managerService) {
+    public ProgramView(ProgramService programService,
+            UserService userService, SecurityService securityService, PortfolioRepository portfolioRepository) {
         this.programService = programService;
-        this.portfolioService = portfolioService;
-        this.managerService = managerService;
+        this.portfolioRepository = portfolioRepository;
+        this.userService = userService;
+        this.securityService = securityService;
 
         setSizeFull();
         configureGrid();
@@ -46,53 +54,145 @@ public class ProgramView extends VerticalLayout {
     private void configureGrid() {
         grid.setSizeFull();
         grid.removeAllColumns();
-        grid.addColumn(Program::getId).setHeader("ID");
-        grid.addColumn(Program::getName).setHeader("Nombre");
+        grid.addColumn(Program::getId).setHeader("ID").setWidth("60px").setFlexGrow(0);
+        grid.addColumn(Program::getName).setHeader("Nombre").setFlexGrow(2);
         grid.addColumn(program -> program.getPortfolio() != null ? program.getPortfolio().getName() : "Sin Portafolio")
-                .setHeader("Portafolio");
+                .setHeader("Portafolio").setFlexGrow(1);
         grid.addColumn(program -> program.getDirector() != null ? program.getDirector().getName() : "Sin Director")
-                .setHeader("Director");
+                .setHeader("Director").setFlexGrow(1);
+
+        // Columna de Editar
+        grid.addComponentColumn(program -> {
+            boolean canEdit = false;
+            if (program.getPortfolio() != null) {
+                canEdit = securityService.isPortfolioDirector(program.getPortfolio().getId());
+            }
+
+            if (canEdit) {
+                Button editButton = new Button("Editar", e -> openProgramDialog(program));
+                editButton.addThemeVariants(com.vaadin.flow.component.button.ButtonVariant.LUMO_SMALL,
+                        com.vaadin.flow.component.button.ButtonVariant.LUMO_PRIMARY);
+                return editButton;
+            } else {
+                return new com.vaadin.flow.component.html.Div(); // Componente vacío
+            }
+        }).setHeader("").setWidth("80px").setFlexGrow(0);
+
+        // Columna de Borrar
+        grid.addComponentColumn(program -> {
+            boolean canDelete = false;
+            if (program.getPortfolio() != null) {
+                canDelete = securityService.isPortfolioDirector(program.getPortfolio().getId());
+            }
+
+            if (canDelete) {
+                Button deleteButton = new Button("Borrar", e -> deleteProgram(program));
+                deleteButton.addThemeVariants(com.vaadin.flow.component.button.ButtonVariant.LUMO_SMALL,
+                        com.vaadin.flow.component.button.ButtonVariant.LUMO_ERROR);
+                return deleteButton;
+            } else {
+                return new com.vaadin.flow.component.html.Div(); // Componente vacío
+            }
+        }).setHeader("").setWidth("80px").setFlexGrow(0);
+
+        // Navigate to detail view on row click
+        grid.addItemClickListener(event -> {
+            if (event.getItem() != null) {
+                com.vaadin.flow.component.UI.getCurrent().navigate("program/" + event.getItem().getId());
+            }
+        });
     }
 
     private HorizontalLayout createToolbar() {
-        Button addProgramButton = new Button("Añadir Programa");
-        addProgramButton.addClickListener(e -> openCreateProgramDialog());
+        HorizontalLayout toolbar = new HorizontalLayout();
 
-        return new HorizontalLayout(addProgramButton);
+        // Only portfolio directors can add new programs
+        boolean isPortfolioDirector = securityService.getCurrentUser() != null &&
+                !portfolioRepository.findAllByDirectorIdWithDirector(securityService.getCurrentUser().getId())
+                        .isEmpty();
+
+        if (isPortfolioDirector) {
+            Button addProgramButton = new Button("Añadir Programa");
+            addProgramButton.addClickListener(e -> openProgramDialog(null));
+            toolbar.add(addProgramButton);
+        }
+
+        return toolbar;
     }
 
-    private void openCreateProgramDialog() {
+    private void deleteProgram(Program program) {
+        if (programService.hasProjects(program.getId())) {
+            Dialog confirmDialog = new Dialog();
+            confirmDialog.setHeaderTitle("Eliminar Programa");
+            confirmDialog.add(
+                    "Este programa tiene proyectos asociados. ¿Desea eliminarlo junto con todos sus proyectos?");
+
+            Button confirmDeleteButton = new Button("Eliminar Todo", event -> {
+                programService.deleteWithCascade(program.getId());
+                updateList();
+                confirmDialog.close();
+                Notification.show("Programa y proyectos eliminados exitosamente");
+            });
+            confirmDeleteButton.getStyle().set("color", "red");
+
+            Button cancelDeleteButton = new Button("Cancelar", event -> confirmDialog.close());
+
+            confirmDialog.getFooter().add(cancelDeleteButton);
+            confirmDialog.getFooter().add(confirmDeleteButton);
+            confirmDialog.open();
+        } else {
+            programService.delete(program.getId());
+            updateList();
+            Notification.show("Programa eliminado exitosamente");
+        }
+    }
+
+    private void openProgramDialog(Program program) {
         Dialog dialog = new Dialog();
-        dialog.setHeaderTitle("Nuevo Programa");
+        dialog.setHeaderTitle(program == null ? "Nuevo Programa" : "Editar Programa");
 
         TextField nameField = new TextField("Nombre");
 
-        ComboBox<Portfolio> portfolioComboBox = new ComboBox<>("Portafolio");
-        portfolioComboBox.setItems(portfolioService.getAll());
-        portfolioComboBox.setItemLabelGenerator(Portfolio::getName);
+        Select<Portfolio> portfolioSelect = new Select<>();
+        portfolioSelect.setLabel("Portafolio");
 
-        ComboBox<Manager> directorComboBox = new ComboBox<>("Director");
-        directorComboBox.setItems(managerService.getAll());
-        directorComboBox.setItemLabelGenerator(Manager::getName);
+        // Filter portfolios based on role (Only Director's portfolios)
+        User currentUser = securityService.getCurrentUser();
+        if (currentUser != null) {
+            portfolioSelect.setItems(portfolioRepository.findAllByDirectorIdWithDirector(currentUser.getId()));
+        }
 
-        VerticalLayout dialogLayout = new VerticalLayout(nameField, portfolioComboBox, directorComboBox);
+        portfolioSelect.setItemLabelGenerator(Portfolio::getName);
+
+        Select<User> directorSelect = new Select<>();
+        directorSelect.setLabel("Director");
+        directorSelect.setItems(userService.findAllByRoles(List.of(Role.MANAGER, Role.ADMIN)));
+        directorSelect.setItemLabelGenerator(User::getName);
+
+        if (program != null) {
+            nameField.setValue(program.getName());
+            portfolioSelect.setValue(program.getPortfolio());
+            directorSelect.setValue(program.getDirector());
+        }
+
+        VerticalLayout dialogLayout = new VerticalLayout(nameField, portfolioSelect, directorSelect);
         dialog.add(dialogLayout);
 
         Button saveButton = new Button("Guardar", e -> {
-            if (nameField.isEmpty() || portfolioComboBox.isEmpty() || directorComboBox.isEmpty()) {
+            if (nameField.isEmpty() || portfolioSelect.isEmpty() || directorSelect.isEmpty()) {
                 Notification.show("Por favor rellene todos los campos");
                 return;
             }
 
-            Program newProgram = new Program();
-            newProgram.setName(nameField.getValue());
-            newProgram.setPortfolio(portfolioComboBox.getValue());
-            newProgram.setDirector(directorComboBox.getValue());
+            Program programToSave = program == null ? new Program() : program;
+            programToSave.setName(nameField.getValue());
+            programToSave.setPortfolio(portfolioSelect.getValue());
+            programToSave.setDirector(directorSelect.getValue());
 
-            programService.createOrUpdate(newProgram);
+            programService.createOrUpdate(programToSave);
             updateList();
             dialog.close();
-            Notification.show("Programa creado exitosamente");
+            Notification.show("Programa guardado exitosamente");
         });
 
         Button cancelButton = new Button("Cancelar", e -> dialog.close());

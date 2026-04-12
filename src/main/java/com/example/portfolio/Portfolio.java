@@ -1,6 +1,6 @@
 package com.example.portfolio;
 
-import com.example.manager.Manager;
+import com.example.user.User;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
@@ -8,7 +8,7 @@ import jakarta.validation.constraints.*;
 @Entity
 @Table(name = "portfolio")
 public class Portfolio {
-    
+
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE)
     @Column(name = "portfolio_id", nullable = false)
@@ -20,9 +20,8 @@ public class Portfolio {
     private String name;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "director_id", nullable = false)
-    @NotNull
-    private Manager director;
+    @JoinColumn(name = "director_id")
+    private User director;
 
     public Long getId() {
         return id;
@@ -40,11 +39,26 @@ public class Portfolio {
         this.name = name;
     }
 
-    public Manager getDirector() {
+    public User getDirector() {
         return director;
     }
 
-    public void setDirector(Manager director) {
+    public void setDirector(User director) {
         this.director = director;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o)
+            return true;
+        if (!(o instanceof Portfolio))
+            return false;
+        Portfolio portfolio = (Portfolio) o;
+        return getId() != null && getId().equals(portfolio.getId());
+    }
+
+    @Override
+    public int hashCode() {
+        return getClass().hashCode();
     }
 }
