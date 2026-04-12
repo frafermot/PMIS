@@ -81,7 +81,9 @@ public class DocumentService {
         doc.setContent(template);
         doc.setStatus(DocumentStatus.EN_PROCESO);
         doc.setUpdatedAt(LocalDateTime.now());
-        return documentRepository.save(doc);
+        doc = documentRepository.save(doc);
+        documentVersionRepository.save(new DocumentVersion(doc, template, null));
+        return doc;
     }
 
     /**
@@ -97,6 +99,10 @@ public class DocumentService {
         if (document.getId() != null) {
             Document existing = documentRepository.findById(document.getId())
                     .orElseThrow(() -> new IllegalArgumentException("Documento no encontrado"));
+
+            if (!Objects.equals(existing.getVersion(), document.getVersion())) {
+                throw new org.springframework.orm.ObjectOptimisticLockingFailureException(Document.class, document.getId());
+            }
 
             boolean isProgramDirector = existing.getProject() != null && existing.getProject().getProgram() != null
                     && securityService.isProgramDirector(existing.getProject().getProgram().getId());
@@ -118,12 +124,12 @@ public class DocumentService {
 
             if (canEditContent) {
                 if (!Objects.equals(existing.getContent(), document.getContent())) {
+                    existing.setContent(document.getContent());
                     documentVersionRepository.save(
                             new DocumentVersion(
                                     existing,
                                     existing.getContent(),
                                     securityService.getCurrentUser()));
-                    existing.setContent(document.getContent());
                 }
             }
 

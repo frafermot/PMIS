@@ -28,6 +28,14 @@ import com.vaadin.flow.component.combobox.ComboBox;
 import java.util.List;
 import java.time.format.DateTimeFormatter;
 
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import com.vaadin.flow.component.dialog.Dialog;
+import com.vaadin.flow.component.html.Paragraph;
+
+import name.fraser.neil.plaintext.diff_match_patch;
+import name.fraser.neil.plaintext.diff_match_patch.Patch;
+import java.util.LinkedList;
+
 @Route(value = "document/:doc", layout = MainLayout.class)
 @PageTitle("Editor de Documento")
 @RolesAllowed({ "ADMIN", "MANAGER", "USER" })
@@ -90,10 +98,13 @@ public class DocumentEditorView extends VerticalLayout implements BeforeEnterObs
         restoreVersionButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_ERROR);
         restoreVersionButton.setVisible(false);
 
-        versionSelector.setPlaceholder("Historial de versiones");
+        versionSelector.setPlaceholder("Seleccionar versión...");
         versionSelector.setWidth("300px");
-        versionSelector.setClearButtonVisible(true);
+        versionSelector.setClearButtonVisible(false);
         versionSelector.setItemLabelGenerator(v -> {
+            if (v.getId() != null && v.getId() == -1L) {
+                return "★ Versión Actual en Edición";
+            }
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
             String date = v.getCreatedAt() != null ? v.getCreatedAt().format(formatter) : "";
             String author = v.getCreatedBy() != null ? v.getCreatedBy().getName() : "Sistema";
@@ -101,7 +112,7 @@ public class DocumentEditorView extends VerticalLayout implements BeforeEnterObs
         });
         versionSelector.addValueChangeListener(e -> {
             DocumentVersion selectedVersion = e.getValue();
-            if (selectedVersion != null) {
+            if (selectedVersion != null && selectedVersion.getId() != -1L) {
                 editor.setValue(selectedVersion.getContent() != null ? selectedVersion.getContent() : "");
                 editor.setReadOnly(true);
                 saveButton.setVisible(false);
@@ -181,9 +192,16 @@ public class DocumentEditorView extends VerticalLayout implements BeforeEnterObs
         this.canEditContent = canEdit;
 
         List<DocumentVersion> versions = documentService.getVersions(currentDocument.getId());
-        versionSelector.setItems(versions);
+
+        List<DocumentVersion> allVersions = new java.util.ArrayList<>();
+        DocumentVersion currentDummy = new DocumentVersion();
+        currentDummy.setId(-1L);
+        allVersions.add(currentDummy);
+        allVersions.addAll(versions);
+
+        versionSelector.setItems(allVersions);
         versionSelector.setVisible(!versions.isEmpty());
-        versionSelector.setValue(null);
+        versionSelector.setValue(currentDummy);
 
         // ── Editor ───────────────────────────────────────────────────────────
         initialContent = currentDocument.getContent() != null ? currentDocument.getContent() : "";
@@ -221,10 +239,102 @@ public class DocumentEditorView extends VerticalLayout implements BeforeEnterObs
             initialContent = currentDocument.getContent() != null ? currentDocument.getContent() : "";
             saveButton.setVisible(false);
             Notification.show("Documento guardado");
+            loadDocument(); // Refresh versions
+        } catch (ObjectOptimisticLockingFailureException e) {
+            handleOptimisticLockingFailure();
         } catch (Exception e) {
-            Notification.show("Error al guardar el documento: " + e.getMessage(),
-                    5000, Notification.Position.MIDDLE);
+            if (e.getCause() instanceof ObjectOptimisticLockingFailureException ||
+                    (e.getCause() != null
+                            && e.getCause().getCause() instanceof ObjectOptimisticLockingFailureException)) {
+                handleOptimisticLockingFailure();
+            } else {
+                Notification.show("Error al guardar el documento: " + e.getMessage(),
+                        5000, Notification.Position.MIDDLE);
+            }
         }
+    }
+
+    private void handleOptimisticLockingFailure() {
+        Document latestFromDb = documentService.get(currentDocument.getId());
+        
+        String baseContent = initialContent != null ? initialContent : "";
+        String theirContent = latestFromDb.getContent() != null ? latestFromDb.getContent() : "";
+        String myContent = editor.getValue() != null ? editor.getValue() : "";
+
+        // Normalizamos el HTML para evitar que el algoritmo se enfrente a conflictos de indentación:
+        // Las plantillas originales tienen saltos de línea y espacios, mientras que CKEditor lo devuelve minificado.
+        // Unificamos el formato a minificado para los tres antes de matemáticamente compararlos.
+        final String baseContentNorm = baseContent.replaceAll(">\\s+<", "><").replaceAll("\\r?\\n", "");
+        final String theirContentNorm = theirContent.replaceAll(">\\s+<", "><").replaceAll("\\r?\\n", "");
+        final String myContentNorm = myContent.replaceAll(">\\s+<", "><").replaceAll("\\r?\\n", "");
+
+        diff_match_patch dmp = new diff_match_patch();
+        LinkedList<Patch> patches = dmp.patch_make(baseContentNorm, myContentNorm);
+        Object[] results = dmp.patch_apply(patches, theirContentNorm);
+        String mergedText = (String) results[0];
+        boolean[] applied = (boolean[]) results[1];
+
+        boolean allApplied = true;
+        for (boolean b : applied) {
+            if (!b) {
+                allApplied = false;
+                break;
+            }
+        }
+
+        if (allApplied) {
+            // Fusión limpia
+            latestFromDb.setContent(mergedText);
+            currentDocument = documentService.createOrUpdate(latestFromDb);
+            initialContent = currentDocument.getContent() != null ? currentDocument.getContent() : "";
+            saveButton.setVisible(false);
+            Notification.show("Fusión automática exitosa. Tus cambios y los de tu compañero se han combinado.",
+                    5000, Notification.Position.MIDDLE);
+            loadDocument();
+            return;
+        }
+
+        Dialog dialog = new Dialog();
+        dialog.setHeaderTitle("Conflicto de Edición Parcial");
+        dialog.add(new Paragraph(
+                "Tú y tu compañero habéis intentado reescribir prácticamente a la vez una misma zona del documento."));
+        dialog.add(new Paragraph("¿Qué deseas hacer para resolverlo?"));
+
+        Button partialMergeButton = new Button("Aplicar Fusión Parcial (Salvar lo posible)", e -> {
+            latestFromDb.setContent(mergedText);
+            currentDocument = documentService.createOrUpdate(latestFromDb);
+            initialContent = currentDocument.getContent() != null ? currentDocument.getContent() : "";
+            saveButton.setVisible(false);
+            Notification.show("Documento guardado con fusión parcial.");
+            dialog.close();
+            loadDocument();
+        });
+        partialMergeButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_SUCCESS);
+
+        Button overwriteButton = new Button("Forzar mis cambios (Pisar todo lo del otro usuario)", e -> {
+            latestFromDb.setContent(myContent);
+            currentDocument = documentService.createOrUpdate(latestFromDb);
+            initialContent = currentDocument.getContent() != null ? currentDocument.getContent() : "";
+            saveButton.setVisible(false);
+            Notification.show("Documento sobrescrito exitosamente");
+            dialog.close();
+            loadDocument();
+        });
+        overwriteButton.addThemeVariants(ButtonVariant.LUMO_ERROR);
+
+        Button reloadButton = new Button("Recargar documento (Aceptar lo de él)", e -> {
+            currentDocument = documentService.get(currentDocument.getId());
+            loadDocument();
+            dialog.close();
+            Notification.show("Documento recargado con los cambios del otro usuario");
+        });
+
+        Button cancelButton = new Button("Cancelar", e -> dialog.close());
+
+        VerticalLayout layout = new VerticalLayout(partialMergeButton, overwriteButton, reloadButton, cancelButton);
+        layout.setSpacing(true);
+        dialog.add(layout);
+        dialog.open();
     }
 
     private void restoreSelectedVersion() {
