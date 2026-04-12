@@ -47,7 +47,6 @@ public class DocumentEditorView extends VerticalLayout implements BeforeEnterObs
 
     private final ComboBox<DocumentVersion> versionSelector = new ComboBox<>();
     private final Button restoreVersionButton = new Button("Restaurar versión", new Icon(VaadinIcon.RECYCLE));
-    private boolean canEditContent = false;
 
     public DocumentEditorView(DocumentService documentService, SecurityService securityService,
             UserService userService) {
@@ -110,7 +109,9 @@ public class DocumentEditorView extends VerticalLayout implements BeforeEnterObs
                     restoreVersionButton.setVisible(true);
                 }
             } else {
-                editor.setValue(currentDocument != null && currentDocument.getContent() != null ? currentDocument.getContent() : "");
+                editor.setValue(
+                        currentDocument != null && currentDocument.getContent() != null ? currentDocument.getContent()
+                                : "");
                 editor.setReadOnly(!canEditContent);
                 saveButton.setVisible(canEditContent);
                 restoreVersionButton.setVisible(false);
@@ -233,7 +234,7 @@ public class DocumentEditorView extends VerticalLayout implements BeforeEnterObs
                 currentDocument.setContent(selectedVersion.getContent());
                 currentDocument = documentService.createOrUpdate(currentDocument);
                 Notification.show("Versión restaurada correctamente.");
-                
+
                 versionSelector.clear();
                 loadDocument();
             } catch (Exception ex) {
