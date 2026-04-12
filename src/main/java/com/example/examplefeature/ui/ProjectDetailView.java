@@ -438,22 +438,27 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         ContextMenu menu = new ContextMenu(actionsBtn);
         menu.setOpenOnClick(true);
 
-        // Crear — only when POR_CREAR and user is not just a viewer
-        // (sponsor/programDirector can't create)
-        var crearItem = menu.addItem("Crear", e -> handleCrear(row.type()));
-        crearItem.setEnabled(isPorCrear && !isProgramDirector && !isSponsor);
-
-        // Modificar — only when document exists
-        var modificarItem = menu.addItem("Modificar", e -> handleModificar(row.document()));
-        modificarItem.setEnabled(!isPorCrear && row.document() != null);
-
-        // No-op actions
-        menu.addItem("Enviar", e -> Notification.show("Funcionalidad de envío no disponible aún"))
-                .setEnabled(false);
-        menu.addItem("Firmar", e -> Notification.show("Funcionalidad de firma no disponible aún"))
-                .setEnabled(false);
-        menu.addItem("Imprimir", e -> Notification.show("Descarga PDF no disponible aún"))
-                .setEnabled(false);
+        if (isProgramDirector) {
+            var verItem = menu.addItem("Ver", e -> handleModificar(row.document()));
+            verItem.setEnabled(!isPorCrear && row.document() != null);
+        } else {
+            // Crear — only when POR_CREAR and user is not just a viewer
+            // (sponsor can't create)
+            var crearItem = menu.addItem("Crear", e -> handleCrear(row.type()));
+            crearItem.setEnabled(isPorCrear && !isSponsor);
+    
+            // Modificar — only when document exists
+            var modificarItem = menu.addItem("Modificar", e -> handleModificar(row.document()));
+            modificarItem.setEnabled(!isPorCrear && row.document() != null);
+    
+            // No-op actions
+            menu.addItem("Enviar", e -> Notification.show("Funcionalidad de envío no disponible aún"))
+                    .setEnabled(false);
+            menu.addItem("Firmar", e -> Notification.show("Funcionalidad de firma no disponible aún"))
+                    .setEnabled(false);
+            menu.addItem("Imprimir", e -> Notification.show("Descarga PDF no disponible aún"))
+                    .setEnabled(false);
+        }
 
         return actionsBtn;
     }
