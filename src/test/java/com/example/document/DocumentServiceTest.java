@@ -146,6 +146,7 @@ class DocumentServiceTest {
 
         Document updateReq = new Document();
         updateReq.setId(createdDoc.getId());
+        updateReq.setVersion(createdDoc.getVersion());
         updateReq.setContent("Updated Content 123");
         
         Document updated = documentService.createOrUpdate(updateReq);
@@ -163,6 +164,7 @@ class DocumentServiceTest {
         
         Document dirUpdate = new Document();
         dirUpdate.setId(createdDoc.getId());
+        dirUpdate.setVersion(createdDoc.getVersion());
         dirUpdate.setContent(createdDoc.getContent());
         dirUpdate.setRating(5.0);
         Document saved1 = documentService.createOrUpdate(dirUpdate);
@@ -171,6 +173,7 @@ class DocumentServiceTest {
         setupSecurityContext(progDirector);
         Document progDirUpdate = new Document();
         progDirUpdate.setId(createdDoc.getId());
+        progDirUpdate.setVersion(saved1.getVersion());
         progDirUpdate.setContent(createdDoc.getContent());
         progDirUpdate.setRating(8.5);
         Document rated = documentService.createOrUpdate(progDirUpdate);
@@ -178,6 +181,7 @@ class DocumentServiceTest {
         
         Document progDirUpdateInvalid = new Document();
         progDirUpdateInvalid.setId(createdDoc.getId());
+        progDirUpdateInvalid.setVersion(rated.getVersion());
         progDirUpdateInvalid.setContent(createdDoc.getContent());
         progDirUpdateInvalid.setRating(11.0);
         assertThrows(IllegalArgumentException.class, () -> {

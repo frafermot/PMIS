@@ -181,6 +181,11 @@ public class DocumentService {
             throw new SecurityException("No tiene permiso para eliminar este documento");
         }
 
+        List<DocumentVersion> versions = getVersions(id);
+        if (versions != null && !versions.isEmpty()) {
+            documentVersionRepository.deleteAll(versions);
+        }
+
         documentRepository.delete(document);
     }
 
