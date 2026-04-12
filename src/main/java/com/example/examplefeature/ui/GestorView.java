@@ -17,6 +17,7 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.router.Menu;
 import com.vaadin.flow.router.PageTitle;
+import com.example.security.SecurityService;
 import com.vaadin.flow.router.Route;
 
 import jakarta.annotation.security.RolesAllowed;
@@ -24,7 +25,7 @@ import jakarta.annotation.security.RolesAllowed;
 @Route(value = "gestores", layout = MainLayout.class)
 @PageTitle("Registro de Gestores")
 @Menu(order = 1, icon = "vaadin:users", title = "Registro de Gestores")
-@RolesAllowed("ADMIN")
+@RolesAllowed({"ADMIN", "MANAGER"})
 public class GestorView extends VerticalLayout {
 
     private final UserService userService;
@@ -32,11 +33,13 @@ public class GestorView extends VerticalLayout {
 
     private final PasswordEncoder passwordEncoder;
     private final PasswordGenerator passwordGenerator;
+    private final SecurityService securityService;
 
-    public GestorView(UserService userService, PasswordEncoder passwordEncoder, PasswordGenerator passwordGenerator) {
+    public GestorView(UserService userService, PasswordEncoder passwordEncoder, PasswordGenerator passwordGenerator, SecurityService securityService) {
         this.userService = userService;
         this.passwordEncoder = passwordEncoder;
         this.passwordGenerator = passwordGenerator;
+        this.securityService = securityService;
 
         setSizeFull();
         configureGrid();
@@ -64,6 +67,10 @@ public class GestorView extends VerticalLayout {
     private HorizontalLayout createToolbar() {
         Button addManagerButton = new Button("Añadir Gestor");
         addManagerButton.addClickListener(e -> openCreateManagerDialog());
+        
+        if (!securityService.isAdmin()) {
+            addManagerButton.setVisible(false);
+        }
 
         return new HorizontalLayout(addManagerButton);
     }
@@ -74,20 +81,36 @@ public class GestorView extends VerticalLayout {
 
         TextField nameField = new TextField("Nombre");
         nameField.setValue(user.getName());
-        nameField.setReadOnly(true);
 
         TextField uvusField = new TextField("UVUS");
         uvusField.setValue(user.getUvus());
-        uvusField.setReadOnly(true);
 
-        TextField isAdminField = new TextField("Es Admin");
-        isAdminField.setValue(user.getRole() == Role.ADMIN ? "Sí" : "No");
-        isAdminField.setReadOnly(true);
+        Checkbox isAdminCheckbox = new Checkbox("Es Admin");
+        isAdminCheckbox.setValue(user.getRole() == Role.ADMIN);
 
-        VerticalLayout dialogLayout = new VerticalLayout(nameField, uvusField, isAdminField);
+        boolean isAdmin = securityService.isAdmin();
+        nameField.setReadOnly(!isAdmin);
+        uvusField.setReadOnly(!isAdmin);
+        isAdminCheckbox.setReadOnly(!isAdmin);
+
+        VerticalLayout dialogLayout = new VerticalLayout(nameField, uvusField, isAdminCheckbox);
         dialog.add(dialogLayout);
 
-        Button closeButton = new Button("Cerrar", e -> dialog.close());
+        Button saveButton = new Button("Guardar", e -> {
+            if (nameField.isEmpty() || uvusField.isEmpty()) {
+                Notification.show("Por favor rellene todos los campos obligatorios");
+                return;
+            }
+
+            user.setName(nameField.getValue());
+            user.setUvus(uvusField.getValue());
+            user.setRole(Boolean.TRUE.equals(isAdminCheckbox.getValue()) ? Role.ADMIN : Role.MANAGER);
+
+            userService.createOrUpdate(user);
+            updateList();
+            dialog.close();
+            Notification.show("Gestor actualizado exitosamente");
+        });
 
         Button deleteButton = new Button("Eliminar", e -> {
             // Check if trying to delete an admin
@@ -133,8 +156,13 @@ public class GestorView extends VerticalLayout {
         });
         deleteButton.getStyle().set("color", "red");
 
-        dialog.getFooter().add(closeButton);
-        dialog.getFooter().add(deleteButton);
+        Button cancelButton = new Button("Cerrar", e -> dialog.close());
+
+        dialog.getFooter().add(cancelButton);
+        if (securityService.isAdmin()) {
+            dialog.getFooter().add(deleteButton);
+            dialog.getFooter().add(saveButton);
+        }
 
         dialog.open();
 
