@@ -23,6 +23,10 @@ import com.vaadin.flow.router.NotFoundException;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import jakarta.annotation.security.RolesAllowed;
+import com.example.document.DocumentVersion;
+import com.vaadin.flow.component.combobox.ComboBox;
+import java.util.List;
+import java.time.format.DateTimeFormatter;
 
 @Route(value = "document/:doc", layout = MainLayout.class)
 @PageTitle("Editor de Documento")
@@ -38,6 +42,10 @@ public class DocumentEditorView extends VerticalLayout implements BeforeEnterObs
     private final Button saveRatingButton = new Button("Guardar Valoración");
     private final CKEditorField editor = new CKEditorField();
     private final Button saveButton = new Button("Guardar");
+
+    private final ComboBox<DocumentVersion> versionSelector = new ComboBox<>();
+    private final Button restoreVersionButton = new Button("Restaurar versión", new Icon(VaadinIcon.RECYCLE));
+    private boolean canEditContent = false;
 
     public DocumentEditorView(DocumentService documentService, SecurityService securityService,
             UserService userService) {
@@ -64,6 +72,36 @@ public class DocumentEditorView extends VerticalLayout implements BeforeEnterObs
         saveButton.addClickListener(e -> saveDocument());
         saveButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
 
+        restoreVersionButton.addClickListener(e -> restoreSelectedVersion());
+        restoreVersionButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_ERROR);
+        restoreVersionButton.setVisible(false);
+
+        versionSelector.setPlaceholder("Historial de versiones");
+        versionSelector.setWidth("300px");
+        versionSelector.setClearButtonVisible(true);
+        versionSelector.setItemLabelGenerator(v -> {
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+            String date = v.getCreatedAt() != null ? v.getCreatedAt().format(formatter) : "";
+            String author = v.getCreatedBy() != null ? v.getCreatedBy().getName() : "Sistema";
+            return date + " - " + author;
+        });
+        versionSelector.addValueChangeListener(e -> {
+            DocumentVersion selectedVersion = e.getValue();
+            if (selectedVersion != null) {
+                editor.setValue(selectedVersion.getContent() != null ? selectedVersion.getContent() : "");
+                editor.setReadOnly(true);
+                saveButton.setVisible(false);
+                if (canEditContent) {
+                    restoreVersionButton.setVisible(true);
+                }
+            } else {
+                editor.setValue(currentDocument != null && currentDocument.getContent() != null ? currentDocument.getContent() : "");
+                editor.setReadOnly(!canEditContent);
+                saveButton.setVisible(canEditContent);
+                restoreVersionButton.setVisible(false);
+            }
+        });
+
         Button backButton = new Button("Volver al Proyecto", new Icon(VaadinIcon.ARROW_LEFT));
         backButton.addClickListener(e -> {
             if (currentDocument != null && currentDocument.getProject() != null) {
@@ -79,7 +117,11 @@ public class DocumentEditorView extends VerticalLayout implements BeforeEnterObs
         ratingGroup.setSpacing(true);
         ratingField.setVisible(false); // hidden until loadDocument sets it
 
-        HorizontalLayout topBar = new HorizontalLayout(backButton, ratingGroup);
+        HorizontalLayout topCenter = new HorizontalLayout(versionSelector, restoreVersionButton);
+        topCenter.setAlignItems(com.vaadin.flow.component.orderedlayout.FlexComponent.Alignment.CENTER);
+        topCenter.setSpacing(true);
+
+        HorizontalLayout topBar = new HorizontalLayout(backButton, topCenter, ratingGroup);
         topBar.setWidthFull();
         topBar.setAlignItems(com.vaadin.flow.component.orderedlayout.FlexComponent.Alignment.CENTER);
         topBar.setJustifyContentMode(com.vaadin.flow.component.orderedlayout.FlexComponent.JustifyContentMode.BETWEEN);
@@ -120,6 +162,12 @@ public class DocumentEditorView extends VerticalLayout implements BeforeEnterObs
         if (currentDocument.getStatus() == DocumentStatus.POR_CREAR) {
             canEdit = false; // should not happen via normal flow, but guard anyway
         }
+        this.canEditContent = canEdit;
+
+        List<DocumentVersion> versions = documentService.getVersions(currentDocument.getId());
+        versionSelector.setItems(versions);
+        versionSelector.setVisible(!versions.isEmpty());
+        versionSelector.setValue(null);
 
         // ── Editor ───────────────────────────────────────────────────────────
         editor.setValue(currentDocument.getContent() != null ? currentDocument.getContent() : "");
@@ -156,6 +204,23 @@ public class DocumentEditorView extends VerticalLayout implements BeforeEnterObs
         } catch (Exception e) {
             Notification.show("Error al guardar el documento: " + e.getMessage(),
                     5000, Notification.Position.MIDDLE);
+        }
+    }
+
+    private void restoreSelectedVersion() {
+        DocumentVersion selectedVersion = versionSelector.getValue();
+        if (selectedVersion != null && currentDocument != null) {
+            try {
+                currentDocument.setContent(selectedVersion.getContent());
+                currentDocument = documentService.createOrUpdate(currentDocument);
+                Notification.show("Versión restaurada correctamente.");
+                
+                versionSelector.clear();
+                loadDocument();
+            } catch (Exception ex) {
+                Notification.show("Error al restaurar la versión: " + ex.getMessage(),
+                        5000, Notification.Position.MIDDLE);
+            }
         }
     }
 
