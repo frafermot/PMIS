@@ -49,9 +49,23 @@ public class CKEditorField extends Component implements HasSize {
         getElement().executeJs("setCKEditorReadOnly($0, $1)", getElement(), readOnly);
     }
 
+    private transient java.util.List<java.util.function.Consumer<String>> valueChangeListeners = new java.util.ArrayList<>();
+
+    public void addValueChangeListener(java.util.function.Consumer<String> listener) {
+        if (valueChangeListeners == null) {
+            valueChangeListeners = new java.util.ArrayList<>();
+        }
+        valueChangeListeners.add(listener);
+    }
+
     /** Called from JavaScript whenever editor content changes. */
     @ClientCallable
     public void updateContent(String html) {
         this.content = html;
+        if (valueChangeListeners != null) {
+            for (java.util.function.Consumer<String> listener : valueChangeListeners) {
+                listener.accept(html);
+            }
+        }
     }
 }

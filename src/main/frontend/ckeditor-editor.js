@@ -70,6 +70,11 @@ window.initCKEditor = (element, initialContent) => {
                 editor.setData(initialContent);
             }
 
+            if (element._pendingReadOnly !== undefined) {
+                window.setCKEditorReadOnly(element, element._pendingReadOnly);
+                delete element._pendingReadOnly;
+            }
+
             // Sync changes to the server
             editor.model.document.on('change:data', () => {
                 const html = editor.getData();
@@ -120,5 +125,17 @@ window.setCKEditorReadOnly = (element, readOnly) => {
         } else {
             element._ckEditor.disableReadOnlyMode('server');
         }
+        
+        const htmlArea = element.querySelector('textarea');
+        if (htmlArea) {
+            htmlArea.readOnly = readOnly;
+        }
+        
+        const toggleBtn = element.querySelector('button');
+        if (toggleBtn) {
+            toggleBtn.style.display = readOnly ? 'none' : 'inline-block';
+        }
+    } else {
+        element._pendingReadOnly = readOnly;
     }
 };

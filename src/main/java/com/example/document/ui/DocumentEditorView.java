@@ -33,6 +33,8 @@ public class DocumentEditorView extends VerticalLayout implements BeforeEnterObs
     private final SecurityService securityService;
     private final UserService userService;
     private Document currentDocument;
+    private String initialContent = "";
+    private boolean canEditContent = false;
 
     private final NumberField ratingField = new NumberField("Valoración");
     private final Button saveRatingButton = new Button("Guardar Valoración");
@@ -63,6 +65,19 @@ public class DocumentEditorView extends VerticalLayout implements BeforeEnterObs
 
         saveButton.addClickListener(e -> saveDocument());
         saveButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        saveButton.getStyle().set("position", "fixed");
+        saveButton.getStyle().set("bottom", "20px");
+        saveButton.getStyle().set("right", "20px");
+        saveButton.getStyle().set("z-index", "1000");
+        saveButton.setVisible(false);
+
+        editor.addValueChangeListener(html -> {
+            if (canEditContent && html != null && !html.equals(initialContent)) {
+                saveButton.setVisible(true);
+            } else {
+                saveButton.setVisible(false);
+            }
+        });
 
         Button backButton = new Button("Volver al Proyecto", new Icon(VaadinIcon.ARROW_LEFT));
         backButton.addClickListener(e -> {
@@ -122,7 +137,9 @@ public class DocumentEditorView extends VerticalLayout implements BeforeEnterObs
         }
 
         // ── Editor ───────────────────────────────────────────────────────────
-        editor.setValue(currentDocument.getContent() != null ? currentDocument.getContent() : "");
+        initialContent = currentDocument.getContent() != null ? currentDocument.getContent() : "";
+        editor.setValue(initialContent);
+        this.canEditContent = canEdit;
         editor.setReadOnly(!canEdit);
 
         // ── Rating field + save button ─────────────────────────────────────
@@ -144,7 +161,7 @@ public class DocumentEditorView extends VerticalLayout implements BeforeEnterObs
         }
 
         // ── Main save button (content only) ───────────────────────────────
-        saveButton.setVisible(canEdit);
+        saveButton.setVisible(false);
     }
 
     /** Saves only the document content (not the rating). */
@@ -152,6 +169,8 @@ public class DocumentEditorView extends VerticalLayout implements BeforeEnterObs
         try {
             currentDocument.setContent(editor.getValue());
             currentDocument = documentService.createOrUpdate(currentDocument);
+            initialContent = currentDocument.getContent() != null ? currentDocument.getContent() : "";
+            saveButton.setVisible(false);
             Notification.show("Documento guardado");
         } catch (Exception e) {
             Notification.show("Error al guardar el documento: " + e.getMessage(),
