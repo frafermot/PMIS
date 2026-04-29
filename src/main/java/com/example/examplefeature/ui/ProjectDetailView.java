@@ -10,6 +10,7 @@ import com.example.document.DocumentType;
 import com.example.project.Project;
 import com.example.project.ProjectService;
 import com.example.security.SecurityService;
+import com.example.task.TaskService;
 import com.example.user.Role;
 import com.example.user.User;
 import com.example.user.UserService;
@@ -17,6 +18,7 @@ import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.contextmenu.ContextMenu;
+import com.vaadin.flow.component.datepicker.DatePicker;
 import com.vaadin.flow.component.details.Details;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.grid.Grid;
@@ -50,6 +52,7 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
     private final SecurityService securityService;
     private final CccService cccService;
     private final DocumentService documentService;
+    private final TaskService taskService;
     private Project currentProject;
     private final Grid<User> userGrid = new Grid<>(User.class, false);
 
@@ -60,6 +63,8 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
     private TextField nameField;
     private Select<User> directorSelect;
     private Select<User> sponsorSelect;
+    private DatePicker startDateField;
+    private DatePicker endDateField;
 
     // Document view: the container that holds whichever mode is active
     private VerticalLayout docViewContainer;
@@ -77,12 +82,13 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
 
     public ProjectDetailView(ProjectService projectService, UserService userService,
             SecurityService securityService, CccService cccService,
-            DocumentService documentService) {
+            DocumentService documentService, TaskService taskService) {
         this.projectService = projectService;
         this.userService = userService;
         this.securityService = securityService;
         this.cccService = cccService;
         this.documentService = documentService;
+        this.taskService = taskService;
 
         setSizeFull();
         setPadding(true);
@@ -116,6 +122,7 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
     private void buildView() {
         buildBreadcrumb();
         buildProjectInfoSection();
+        buildScheduleSection();
         buildUsersSection();
         buildDocumentsSection();
     }
@@ -193,14 +200,28 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         sponsorSelect.setValue(currentProject.getSponsor());
         sponsorSelect.setWidthFull();
 
+        startDateField = new DatePicker("Fecha Inicio");
+        startDateField.setValue(currentProject.getStartDate());
+        startDateField.setWidthFull();
+
+        endDateField = new DatePicker("Fecha Fin");
+        endDateField.setValue(currentProject.getEndDate());
+        endDateField.setWidthFull();
+
         Button saveButton = new Button("Guardar Cambios", e -> saveProject());
         saveButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
 
-        HorizontalLayout formLayout = new HorizontalLayout(nameField, programField, directorSelect, sponsorSelect,
-                saveButton);
-        formLayout.setWidthFull();
-        formLayout.setAlignItems(Alignment.END);
-        add(formLayout);
+        HorizontalLayout formLayout1 = new HorizontalLayout(nameField, programField, directorSelect);
+        formLayout1.setWidthFull();
+        formLayout1.setAlignItems(Alignment.END);
+        
+        HorizontalLayout formLayout2 = new HorizontalLayout(sponsorSelect, startDateField, endDateField, saveButton);
+        formLayout2.setWidthFull();
+        formLayout2.setAlignItems(Alignment.END);
+        
+        VerticalLayout mainFormLayout = new VerticalLayout(formLayout1, formLayout2);
+        mainFormLayout.setPadding(false);
+        add(mainFormLayout);
 
         // Compute permissions
         isProgramDirector = currentProject.getProgram() != null
@@ -214,6 +235,8 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
 
         nameField.setReadOnly(!canEditProjectInfo);
         sponsorSelect.setReadOnly(!canEditProjectInfo);
+        startDateField.setReadOnly(!canEditProjectInfo);
+        endDateField.setReadOnly(!canEditProjectInfo);
 
         if (canAssignDirector) {
             directorSelect.setReadOnly(false);
@@ -230,6 +253,25 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         if (!canEditProjectInfo && !canAssignDirector) {
             saveButton.setVisible(false);
         }
+    }
+
+    // ─── Schedule section ────────────────────────────────────────────────────────
+    
+    private void buildScheduleSection() {
+        VerticalLayout layout = new VerticalLayout();
+        layout.setPadding(false);
+        
+        Button openGanttBtn = new Button("Abrir Cronograma Completo", e -> {
+            UI.getCurrent().navigate("proyecto/" + currentProject.getId() + "/gantt");
+        });
+        openGanttBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_LARGE);
+        layout.add(openGanttBtn);
+        layout.setAlignItems(Alignment.CENTER);
+        
+        Details details = new Details("Cronograma", layout);
+        details.setOpened(true);
+        details.setWidthFull();
+        add(details);
     }
 
     // ─── Users section (collapsible, closed by default) ───────────────────────
@@ -506,9 +548,17 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
             Notification.show("Por favor rellene Nombre y Sponsor");
             return;
         }
+        if (startDateField.getValue() != null && endDateField.getValue() != null) {
+            if (endDateField.getValue().isBefore(startDateField.getValue())) {
+                Notification.show("La fecha de fin no puede ser anterior a la de inicio");
+                return;
+            }
+        }
         currentProject.setName(nameField.getValue());
         currentProject.setDirector(directorSelect.getValue());
         currentProject.setSponsor(sponsorSelect.getValue());
+        currentProject.setStartDate(startDateField.getValue());
+        currentProject.setEndDate(endDateField.getValue());
         projectService.createOrUpdate(currentProject);
         Notification.show("Proyecto actualizado exitosamente");
     }

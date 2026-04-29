@@ -6,6 +6,7 @@ import com.example.communication.Ccc;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "project")
@@ -36,6 +37,12 @@ public class Project {
 
     @OneToOne(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
     private Ccc ccc;
+
+    @Column(name = "start_date")
+    private LocalDate startDate;
+
+    @Column(name = "end_date")
+    private LocalDate endDate;
 
     public Long getId() {
         return id;
@@ -86,6 +93,22 @@ public class Project {
         if (ccc != null && ccc.getProject() != this) {
             ccc.setProject(this);
         }
+    }
+
+    public LocalDate getStartDate() {
+        return startDate;
+    }
+
+    public void setStartDate(LocalDate startDate) {
+        this.startDate = startDate;
+    }
+
+    public LocalDate getEndDate() {
+        return endDate;
+    }
+
+    public void setEndDate(LocalDate endDate) {
+        this.endDate = endDate;
     }
 
     @Override
