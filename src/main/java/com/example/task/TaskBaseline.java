@@ -30,6 +30,17 @@ public class TaskBaseline {
     @NotNull
     private LocalDate endDate;
 
+    @Column(name = "duration")
+    private Integer duration;
+
+    public Integer getDuration() {
+        return duration;
+    }
+
+    public void setDuration(Integer duration) {
+        this.duration = duration;
+    }
+
     public Long getId() {
         return id;
     }

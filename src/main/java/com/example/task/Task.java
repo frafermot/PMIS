@@ -59,6 +59,17 @@ public class Task {
     @Column(name = "is_group")
     private boolean isGroup = false;
 
+    @Column(name = "duration")
+    private Integer duration;
+
+    public Integer getDuration() {
+        return duration;
+    }
+
+    public void setDuration(Integer duration) {
+        this.duration = duration;
+    }
+
     @Column(name = "is_milestone")
     private boolean isMilestone = false;
 

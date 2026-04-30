@@ -54,7 +54,7 @@ public class Project {
     private java.time.LocalTime workEndHour = java.time.LocalTime.of(18, 0);
 
     @Column(name = "duration_unit")
-    private String durationUnit = "DAYS"; // "DAYS" or "HOURS"
+    private String durationUnit = "HOURS"; // "DAYS" or "HOURS"
 
     @Column(name = "visible_columns", length = 500)
     private String visibleColumns = "EDT,Nombre,Pred.,Responsable,Inicio,Fin,Duración,Coste";

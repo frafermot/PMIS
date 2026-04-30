@@ -46,6 +46,14 @@ public class TaskService {
 
     @Transactional
     public Task saveTask(Task task) {
+        return saveTaskInternal(task, new java.util.HashSet<>());
+    }
+
+    private Task saveTaskInternal(Task task, java.util.Set<Long> updatedTaskIds) {
+        if (task.getId() != null && updatedTaskIds.contains(task.getId())) {
+            return task;
+        }
+
         if (isCircularDependency(task, task.getPredecessor())) {
             throw new IllegalStateException("Dependencia circular detectada: la tarea no puede depender de sí misma o de una sucesora suya.");
         }
@@ -56,9 +64,12 @@ public class TaskService {
         }
         
         Task savedTask = taskRepository.save(task);
+        if (savedTask.getId() != null) {
+            updatedTaskIds.add(savedTask.getId());
+        }
         
         // Update successors if this task's dates changed
-        updateSuccessorDates(savedTask);
+        updateSuccessorDatesInternal(savedTask, updatedTaskIds);
         
         // Update parent group dates
         if (savedTask.getParentGroup() != null) {
@@ -137,34 +148,44 @@ public class TaskService {
 
     private void calculateDatesBasedOnDependency(Task task) {
         if (task.getPredecessor() != null && task.getDependencyType() != TaskDependencyType.NONE) {
-            long durationDays = ChronoUnit.DAYS.between(task.getStartDate(), task.getEndDate());
             Project project = task.getProject();
+            long durationVal;
+            if (project.getDurationUnit().equals("HOURS")) {
+                long hoursPerDay = ChronoUnit.HOURS.between(project.getWorkStartHour(), project.getWorkEndHour());
+                int totalHours = task.getDuration() != null ? task.getDuration() : (int)hoursPerDay;
+                durationVal = (long) Math.ceil((double) totalHours / hoursPerDay);
+            } else {
+                durationVal = task.getDuration() != null ? task.getDuration() : (ChronoUnit.DAYS.between(task.getStartDate(), task.getEndDate()) + 1);
+            }
+            // In our logic, 'durationVal' as used in addWorkingDays is 'days to add'
+            // If duration is 1 day (or <9h), durationVal is 1. addWorkingDays should add 0 days to keep it same day.
+            long daysToAdd = durationVal > 0 ? durationVal - 1 : 0;
             
             switch (task.getDependencyType()) {
                 case FINISH_TO_START:
                     LocalDate nextDay = getNextWorkingDay(task.getPredecessor().getEndDate().plusDays(1), project);
                     if (task.getStartDate().isBefore(nextDay)) {
                         task.setStartDate(nextDay);
-                        task.setEndDate(addWorkingDays(task.getStartDate(), durationDays, project));
+                        task.setEndDate(addWorkingDays(task.getStartDate(), daysToAdd, project));
                     }
                     break;
                 case START_TO_START:
                     if (task.getStartDate().isBefore(task.getPredecessor().getStartDate())) {
                         task.setStartDate(task.getPredecessor().getStartDate());
-                        task.setEndDate(addWorkingDays(task.getStartDate(), durationDays, project));
+                        task.setEndDate(addWorkingDays(task.getStartDate(), daysToAdd, project));
                     }
                     break;
                 case FINISH_TO_FINISH:
                     if (task.getEndDate().isBefore(task.getPredecessor().getEndDate())) {
                         task.setEndDate(task.getPredecessor().getEndDate());
-                        task.setStartDate(subtractWorkingDays(task.getEndDate(), durationDays, project));
+                        task.setStartDate(subtractWorkingDays(task.getEndDate(), daysToAdd, project));
                     }
                     break;
                 case START_TO_FINISH:
                     LocalDate startToFinishDay = getNextWorkingDay(task.getPredecessor().getStartDate().plusDays(1), project);
                     if (task.getEndDate().isBefore(startToFinishDay)) {
                         task.setEndDate(startToFinishDay);
-                        task.setStartDate(subtractWorkingDays(task.getEndDate(), durationDays, project));
+                        task.setStartDate(subtractWorkingDays(task.getEndDate(), daysToAdd, project));
                     }
                     break;
                 case NONE:
@@ -215,12 +236,12 @@ public class TaskService {
         return result;
     }
 
-    private void updateSuccessorDates(Task predecessor) {
+    private void updateSuccessorDatesInternal(Task predecessor, java.util.Set<Long> updatedTaskIds) {
         List<Task> successors = taskRepository.findByPredecessor(predecessor);
         for (Task successor : successors) {
             calculateDatesBasedOnDependency(successor);
             // Recursively update downstream tasks
-            saveTask(successor);
+            saveTaskInternal(successor, updatedTaskIds);
         }
     }
 
@@ -325,6 +346,7 @@ public class TaskService {
             tb.setTask(t);
             tb.setStartDate(t.getStartDate());
             tb.setEndDate(t.getEndDate());
+            tb.setDuration(t.getDuration());
             taskBaselineRepository.save(tb);
             
             // Also update the legacy fields in Task for backward compatibility/simplicity in some views

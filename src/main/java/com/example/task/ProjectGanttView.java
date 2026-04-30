@@ -337,12 +337,10 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
         if (visible.contains("Duración"))
             grid.addColumn(task -> {
                 if (task.isMilestone()) return "0";
-                long days = ChronoUnit.DAYS.between(task.getStartDate(), task.getEndDate()) + 1;
                 if (currentProject.getDurationUnit().equals("HOURS")) {
-                    long hoursPerDay = ChronoUnit.HOURS.between(currentProject.getWorkStartHour(), currentProject.getWorkEndHour());
-                    return (days * hoursPerDay) + "h";
+                    return (task.getDuration() != null ? task.getDuration() : 0) + "h";
                 }
-                return days + "d";
+                return (task.getDuration() != null ? task.getDuration() : (ChronoUnit.DAYS.between(task.getStartDate(), task.getEndDate()) + 1)) + "d";
             }).setHeader("Duración").setFlexGrow(1).setResizable(true);
 
         if (visible.contains("Coste"))
@@ -366,12 +364,10 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
                 grid.addColumn(task -> {
                     TaskBaseline tb = taskBaselineMap.get(task.getId());
                     if (tb == null) return "-";
-                    long days = ChronoUnit.DAYS.between(tb.getStartDate(), tb.getEndDate()) + 1;
                     if (currentProject.getDurationUnit().equals("HOURS")) {
-                        long hoursPerDay = ChronoUnit.HOURS.between(currentProject.getWorkStartHour(), currentProject.getWorkEndHour());
-                        return (days * hoursPerDay) + "h";
+                        return (tb.getDuration() != null ? tb.getDuration() : 0) + "h";
                     }
-                    return days + "d";
+                    return (tb.getDuration() != null ? tb.getDuration() : (ChronoUnit.DAYS.between(tb.getStartDate(), tb.getEndDate()) + 1)) + "d";
                 }).setHeader("Duración LB").setFlexGrow(1).setResizable(true);
             
             if (visible.contains("Coste LB"))
@@ -855,7 +851,7 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
         TextArea descField = new TextArea("Descripción");
         DatePicker startDateField = new DatePicker("Fecha Inicio");
         IntegerField durationField = new IntegerField("Duración (" + (currentProject.getDurationUnit().equals("DAYS") ? "Días" : "Horas") + ")");
-        durationField.setMin(currentProject.getDurationUnit().equals("DAYS") ? 1 : (int)ChronoUnit.HOURS.between(currentProject.getWorkStartHour(), currentProject.getWorkEndHour()));
+        durationField.setMin(1);
         DatePicker endDateField = new DatePicker("Fecha Fin");
 
         // Reactivity for Duration
@@ -979,6 +975,7 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
         binder.forField(descField).bind(Task::getDescription, Task::setDescription);
         binder.forField(startDateField).asRequired("Requerido").bind(Task::getStartDate, Task::setStartDate);
         binder.forField(endDateField).asRequired("Requerido").bind(Task::getEndDate, Task::setEndDate);
+        binder.forField(durationField).asRequired("Requerido").bind(Task::getDuration, Task::setDuration);
         binder.forField(assigneeBox).bind(Task::getAssignee, Task::setAssignee);
         binder.forField(predecessorBox).bind(Task::getPredecessor, Task::setPredecessor);
         binder.forField(depTypeBox).bind(Task::getDependencyType, Task::setDependencyType);
@@ -1009,15 +1006,22 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
             task.setStartDate(LocalDate.now());
             task.setEndDate(LocalDate.now());
             long hoursPerDay = ChronoUnit.HOURS.between(currentProject.getWorkStartHour(), currentProject.getWorkEndHour());
-            durationField.setValue(currentProject.getDurationUnit().equals("HOURS") ? (int)hoursPerDay : 1);
-        } else {
+            task.setDuration(currentProject.getDurationUnit().equals("HOURS") ? (int)hoursPerDay : 1);
+        }
+        
+        // Initialize fields from task entity
+        binder.readBean(task);
+        
+        // Ensure duration is set if it was null (for legacy tasks)
+        if (task.getDuration() == null) {
             long days = ChronoUnit.DAYS.between(task.getStartDate(), task.getEndDate()) + 1;
             if (currentProject.getDurationUnit().equals("HOURS")) {
                 long hoursPerDay = ChronoUnit.HOURS.between(currentProject.getWorkStartHour(), currentProject.getWorkEndHour());
-                durationField.setValue((int)(days * hoursPerDay));
+                task.setDuration((int)(days * hoursPerDay));
             } else {
-                durationField.setValue((int)days);
+                task.setDuration((int)days);
             }
+            durationField.setValue(task.getDuration());
         }
         binder.readBean(task);
 
@@ -1155,6 +1159,10 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
         Double costPerHour = task.getAssignee().getResource().getCostPerHour();
         if (costPerHour == null) return 0.0;
 
+        if (currentProject.getDurationUnit().equals("HOURS")) {
+            return (task.getDuration() != null ? task.getDuration() : 0) * costPerHour;
+        }
+        
         long days = ChronoUnit.DAYS.between(task.getStartDate(), task.getEndDate()) + 1;
         long hoursPerDay = ChronoUnit.HOURS.between(currentProject.getWorkStartHour(), currentProject.getWorkEndHour());
         
@@ -1188,6 +1196,10 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
 
         Double costPerHour = task.getAssignee().getResource().getCostPerHour();
         if (costPerHour == null) return 0.0;
+
+        if (currentProject.getDurationUnit().equals("HOURS")) {
+            return (tb.getDuration() != null ? tb.getDuration() : 0) * costPerHour;
+        }
 
         long days = ChronoUnit.DAYS.between(tb.getStartDate(), tb.getEndDate()) + 1;
         long hoursPerDay = ChronoUnit.HOURS.between(currentProject.getWorkStartHour(), currentProject.getWorkEndHour());
