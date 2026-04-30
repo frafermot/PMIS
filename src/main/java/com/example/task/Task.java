@@ -6,6 +6,7 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -27,17 +28,17 @@ public class Task {
 
     @Column(name = "start_date", nullable = false)
     @NotNull
-    private LocalDate startDate;
+    private LocalDateTime startDate;
 
     @Column(name = "end_date", nullable = false)
     @NotNull
-    private LocalDate endDate;
+    private LocalDateTime endDate;
 
     @Column(name = "baseline_start_date")
-    private LocalDate baselineStartDate;
+    private LocalDateTime baselineStartDate;
 
     @Column(name = "baseline_end_date")
-    private LocalDate baselineEndDate;
+    private LocalDateTime baselineEndDate;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "project_id", nullable = false)
@@ -110,19 +111,19 @@ public class Task {
         this.description = description;
     }
 
-    public LocalDate getStartDate() {
+    public LocalDateTime getStartDate() {
         return startDate;
     }
-
-    public void setStartDate(LocalDate startDate) {
+    
+    public void setStartDate(LocalDateTime startDate) {
         this.startDate = startDate;
     }
-
-    public LocalDate getEndDate() {
+    
+    public LocalDateTime getEndDate() {
         return endDate;
     }
-
-    public void setEndDate(LocalDate endDate) {
+    
+    public void setEndDate(LocalDateTime endDate) {
         this.endDate = endDate;
     }
 
@@ -206,19 +207,19 @@ public class Task {
         this.subTasks = subTasks;
     }
 
-    public LocalDate getBaselineStartDate() {
+    public LocalDateTime getBaselineStartDate() {
         return baselineStartDate;
     }
 
-    public void setBaselineStartDate(LocalDate baselineStartDate) {
+    public void setBaselineStartDate(LocalDateTime baselineStartDate) {
         this.baselineStartDate = baselineStartDate;
     }
 
-    public LocalDate getBaselineEndDate() {
+    public LocalDateTime getBaselineEndDate() {
         return baselineEndDate;
     }
 
-    public void setBaselineEndDate(LocalDate baselineEndDate) {
+    public void setBaselineEndDate(LocalDateTime baselineEndDate) {
         this.baselineEndDate = baselineEndDate;
     }
 

@@ -109,8 +109,8 @@ public class TaskService {
             
         if (children.isEmpty()) return;
 
-        LocalDate minStart = children.stream().map(Task::getStartDate).min(LocalDate::compareTo).orElse(group.getStartDate());
-        LocalDate maxEnd = children.stream().map(Task::getEndDate).max(LocalDate::compareTo).orElse(group.getEndDate());
+        LocalDateTime minStart = children.stream().map(Task::getStartDate).min(LocalDateTime::compareTo).orElse(group.getStartDate());
+        LocalDateTime maxEnd = children.stream().map(Task::getEndDate).max(LocalDateTime::compareTo).orElse(group.getEndDate());
 
         group.setStartDate(minStart);
         group.setEndDate(maxEnd);
@@ -149,44 +149,31 @@ public class TaskService {
     private void calculateDatesBasedOnDependency(Task task) {
         if (task.getPredecessor() != null && task.getDependencyType() != TaskDependencyType.NONE) {
             Project project = task.getProject();
-            long durationVal;
+            int durationHours;
             if (project.getDurationUnit().equals("HOURS")) {
-                long hoursPerDay = ChronoUnit.HOURS.between(project.getWorkStartHour(), project.getWorkEndHour());
-                int totalHours = task.getDuration() != null ? task.getDuration() : (int)hoursPerDay;
-                durationVal = (long) Math.ceil((double) totalHours / hoursPerDay);
+                durationHours = task.getDuration() != null ? task.getDuration() : 1;
             } else {
-                durationVal = task.getDuration() != null ? task.getDuration() : (ChronoUnit.DAYS.between(task.getStartDate(), task.getEndDate()) + 1);
+                long hoursPerDay = ChronoUnit.HOURS.between(project.getWorkStartHour(), project.getWorkEndHour());
+                durationHours = (int)((task.getDuration() != null ? task.getDuration() : 1) * hoursPerDay);
             }
-            // In our logic, 'durationVal' as used in addWorkingDays is 'days to add'
-            // If duration is 1 day (or <9h), durationVal is 1. addWorkingDays should add 0 days to keep it same day.
-            long daysToAdd = durationVal > 0 ? durationVal - 1 : 0;
-            
+
             switch (task.getDependencyType()) {
                 case FINISH_TO_START:
-                    LocalDate nextDay = getNextWorkingDay(task.getPredecessor().getEndDate().plusDays(1), project);
-                    if (task.getStartDate().isBefore(nextDay)) {
-                        task.setStartDate(nextDay);
-                        task.setEndDate(addWorkingDays(task.getStartDate(), daysToAdd, project));
-                    }
+                    LocalDateTime fsStart = task.getPredecessor().getEndDate();
+                    task.setStartDate(ensureWorkingTime(fsStart, project));
+                    task.setEndDate(addWorkingHours(task.getStartDate(), durationHours, project));
                     break;
                 case START_TO_START:
-                    if (task.getStartDate().isBefore(task.getPredecessor().getStartDate())) {
-                        task.setStartDate(task.getPredecessor().getStartDate());
-                        task.setEndDate(addWorkingDays(task.getStartDate(), daysToAdd, project));
-                    }
+                    task.setStartDate(ensureWorkingTime(task.getPredecessor().getStartDate(), project));
+                    task.setEndDate(addWorkingHours(task.getStartDate(), durationHours, project));
                     break;
                 case FINISH_TO_FINISH:
-                    if (task.getEndDate().isBefore(task.getPredecessor().getEndDate())) {
-                        task.setEndDate(task.getPredecessor().getEndDate());
-                        task.setStartDate(subtractWorkingDays(task.getEndDate(), daysToAdd, project));
-                    }
+                    task.setEndDate(ensureWorkingTime(task.getPredecessor().getEndDate(), project));
+                    task.setStartDate(subtractWorkingHours(task.getEndDate(), durationHours, project));
                     break;
                 case START_TO_FINISH:
-                    LocalDate startToFinishDay = getNextWorkingDay(task.getPredecessor().getStartDate().plusDays(1), project);
-                    if (task.getEndDate().isBefore(startToFinishDay)) {
-                        task.setEndDate(startToFinishDay);
-                        task.setStartDate(subtractWorkingDays(task.getEndDate(), daysToAdd, project));
-                    }
+                    task.setEndDate(ensureWorkingTime(task.getPredecessor().getStartDate(), project));
+                    task.setStartDate(subtractWorkingHours(task.getEndDate(), durationHours, project));
                     break;
                 case NONE:
                 default:
@@ -195,45 +182,65 @@ public class TaskService {
         }
     }
 
-    private LocalDate getNextWorkingDay(LocalDate date, Project project) {
-        LocalDate current = date;
-        while (!isWorkingDay(current, project)) {
-            current = current.plusDays(1);
+    public LocalDateTime ensureWorkingTime(LocalDateTime dateTime, Project project) {
+        LocalDateTime current = dateTime;
+        while (!isWorkingDay(current.toLocalDate(), project)) {
+            current = current.plusDays(1).with(project.getWorkStartHour());
+        }
+        if (current.toLocalTime().isBefore(project.getWorkStartHour())) {
+            current = current.with(project.getWorkStartHour());
+        } else if (current.toLocalTime().isAfter(project.getWorkEndHour())) {
+            current = current.plusDays(1).with(project.getWorkStartHour());
+            return ensureWorkingTime(current, project);
         }
         return current;
     }
 
-    private boolean isWorkingDay(LocalDate date, Project project) {
-        String workingDaysStr = project.getWorkingDays();
-        if (workingDaysStr == null || workingDaysStr.isEmpty()) return true;
-        Set<DayOfWeek> workingDays = Arrays.stream(workingDaysStr.split(","))
-                .map(DayOfWeek::valueOf)
-                .collect(Collectors.toSet());
-        return workingDays.contains(date.getDayOfWeek());
-    }
-
-    private LocalDate addWorkingDays(LocalDate start, long duration, Project project) {
-        LocalDate result = start;
-        int added = 0;
-        while (added < duration) {
-            result = result.plusDays(1);
-            if (isWorkingDay(result, project)) {
-                added++;
+    public LocalDateTime addWorkingHours(LocalDateTime start, int hours, Project project) {
+        LocalDateTime current = ensureWorkingTime(start, project);
+        int remainingHours = hours;
+        
+        while (remainingHours > 0) {
+            LocalDateTime endOfDay = current.with(project.getWorkEndHour());
+            long hoursToday = ChronoUnit.HOURS.between(current, endOfDay);
+            
+            if (hoursToday >= remainingHours) {
+                current = current.plusHours(remainingHours);
+                remainingHours = 0;
+            } else {
+                remainingHours -= (int)hoursToday;
+                current = current.plusDays(1).with(project.getWorkStartHour());
+                current = ensureWorkingTime(current, project);
             }
         }
-        return result;
+        return current;
     }
 
-    private LocalDate subtractWorkingDays(LocalDate end, long duration, Project project) {
-        LocalDate result = end;
-        int subtracted = 0;
-        while (subtracted < duration) {
-            result = result.minusDays(1);
-            if (isWorkingDay(result, project)) {
-                subtracted++;
+    public LocalDateTime subtractWorkingHours(LocalDateTime end, int hours, Project project) {
+        LocalDateTime current = end;
+        if (current.toLocalTime().isBefore(project.getWorkStartHour())) {
+            current = current.minusDays(1).with(project.getWorkEndHour());
+        } else if (current.toLocalTime().isAfter(project.getWorkEndHour())) {
+            current = current.with(project.getWorkEndHour());
+        }
+        
+        int remainingHours = hours;
+        while (remainingHours > 0) {
+            LocalDateTime startOfDay = current.with(project.getWorkStartHour());
+            long hoursToday = ChronoUnit.HOURS.between(startOfDay, current);
+            
+            if (hoursToday >= remainingHours) {
+                current = current.minusHours(remainingHours);
+                remainingHours = 0;
+            } else {
+                remainingHours -= (int)hoursToday;
+                current = current.minusDays(1).with(project.getWorkEndHour());
+                while (!isWorkingDay(current.toLocalDate(), project)) {
+                    current = current.minusDays(1);
+                }
             }
         }
-        return result;
+        return current;
     }
 
     private void updateSuccessorDatesInternal(Task predecessor, java.util.Set<Long> updatedTaskIds) {
@@ -298,11 +305,11 @@ public class TaskService {
 
         if (allTasks.isEmpty()) return;
         
-        LocalDate maxEndDate = allTasks.stream().map(Task::getEndDate).max(LocalDate::compareTo).orElse(null);
-        if (maxEndDate == null) return;
+        LocalDateTime maxEnd = allTasks.stream().map(Task::getEndDate).max(LocalDateTime::compareTo).orElse(null);
+        if (maxEnd == null) return;
         
         List<Task> terminalTasks = allTasks.stream()
-            .filter(t -> t.getEndDate().equals(maxEndDate))
+            .filter(t -> t.getEndDate().equals(maxEnd))
             .toList();
             
         for (Task t : terminalTasks) {
@@ -369,5 +376,17 @@ public class TaskService {
         if (pb == null) return new java.util.HashMap<>();
         return getTaskBaselines(pb).stream()
                 .collect(Collectors.toMap(tb -> tb.getTask().getId(), tb -> tb));
+    }
+
+    public boolean isWorkingDay(LocalDate date, Project project) {
+        String workingDaysStr = project.getWorkingDays();
+        if (workingDaysStr == null || workingDaysStr.isEmpty()) return true;
+        
+        try {
+            DayOfWeek day = date.getDayOfWeek();
+            return workingDaysStr.contains(day.name());
+        } catch (Exception e) {
+            return true;
+        }
     }
 }

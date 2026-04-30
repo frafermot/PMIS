@@ -17,8 +17,8 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
            "((t.startDate <= :endDate AND t.endDate >= :startDate))")
     List<Task> findOverlappingTasksForAssignee(
             @Param("assignee") User assignee,
-            @Param("startDate") LocalDate startDate,
-            @Param("endDate") LocalDate endDate,
+            @Param("startDate") java.time.LocalDateTime startDate,
+            @Param("endDate") java.time.LocalDateTime endDate,
             @Param("excludeTaskId") Long excludeTaskId
     );
 

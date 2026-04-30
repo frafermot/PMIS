@@ -3,6 +3,7 @@ package com.example.task;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "task_baseline")
@@ -24,11 +25,11 @@ public class TaskBaseline {
 
     @Column(name = "start_date", nullable = false)
     @NotNull
-    private LocalDate startDate;
+    private LocalDateTime startDate;
 
     @Column(name = "end_date", nullable = false)
     @NotNull
-    private LocalDate endDate;
+    private LocalDateTime endDate;
 
     @Column(name = "duration")
     private Integer duration;
@@ -65,19 +66,19 @@ public class TaskBaseline {
         this.task = task;
     }
 
-    public LocalDate getStartDate() {
+    public LocalDateTime getStartDate() {
         return startDate;
     }
 
-    public void setStartDate(LocalDate startDate) {
+    public void setStartDate(LocalDateTime startDate) {
         this.startDate = startDate;
     }
 
-    public LocalDate getEndDate() {
+    public LocalDateTime getEndDate() {
         return endDate;
     }
 
-    public void setEndDate(LocalDate endDate) {
+    public void setEndDate(LocalDateTime endDate) {
         this.endDate = endDate;
     }
 }
