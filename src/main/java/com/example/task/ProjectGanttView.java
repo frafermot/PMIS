@@ -34,6 +34,10 @@ import com.vaadin.flow.dom.Element;
 import com.vaadin.flow.component.checkbox.CheckboxGroup;
 import com.vaadin.flow.component.checkbox.CheckboxGroupVariant;
 import com.vaadin.flow.component.timepicker.TimePicker;
+import com.vaadin.flow.component.menubar.MenuBar;
+import com.vaadin.flow.component.menubar.MenuBarVariant;
+import com.vaadin.flow.component.contextmenu.MenuItem;
+import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.router.BeforeEnterEvent;
 import com.vaadin.flow.router.BeforeEnterObserver;
 import com.vaadin.flow.router.PageTitle;
@@ -65,6 +69,11 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
 
     private TreeGrid<Task> grid = new TreeGrid<>(Task.class);
     private List<Task> tasks;
+    private boolean showBaseline = false;
+    private ProjectBaseline selectedBaseline;
+    private java.util.Map<Long, TaskBaseline> taskBaselineMap = new java.util.HashMap<>();
+    private ComboBox<ProjectBaseline> baselineSelector;
+    private HorizontalLayout baselineRow;
 
     private Div timelineContainer;
 
@@ -112,6 +121,9 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
             return;
         }
 
+        // Collapse drawer automatically
+        UI.getCurrent().getElement().executeJs("document.querySelector('vaadin-app-layout').drawerOpened = false");
+
         removeAll();
         buildView();
         refreshData();
@@ -129,36 +141,63 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
         Button backBtn = new Button("Volver", e -> UI.getCurrent().navigate("proyecto/" + currentProject.getId()));
         titleGroup.add(backBtn, new H2("Cronograma: " + currentProject.getName()));
 
-        Button wbsBtn = new Button("Asignar EDT", e -> {
+        // Toolbar
+        MenuBar menuBar = new MenuBar();
+        menuBar.addThemeVariants(MenuBarVariant.LUMO_CONTRAST);
+
+        // Acciones principales
+        Button addTaskBtn = new Button("Tarea", VaadinIcon.PLUS.create(), e -> openTaskDialog(new Task()));
+        addTaskBtn.addThemeVariants(ButtonVariant.LUMO_SUCCESS, ButtonVariant.LUMO_PRIMARY);
+
+        // Menú de Planificación
+        MenuItem planning = menuBar.addItem(VaadinIcon.CHART_TIMELINE.create());
+        planning.add(" Planificación");
+        planning.getSubMenu().addItem("Asignar EDT", e -> {
             taskService.assignWBS(currentProject);
             refreshData();
         });
-        wbsBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-
-        Button criticalPathBtn = new Button("Ruta Crítica", e -> {
+        planning.getSubMenu().addItem("Calcular Ruta Crítica", e -> {
             taskService.calculateCriticalPath(currentProject);
             refreshData();
         });
-        criticalPathBtn.addThemeVariants(ButtonVariant.LUMO_ERROR);
+        planning.getSubMenu().addItem("Agrupar Selección", e -> openGroupDialog());
 
-        Button groupBtn = new Button("Agrupar Selección", e -> openGroupDialog());
-        groupBtn.addThemeVariants(ButtonVariant.LUMO_CONTRAST);
+        // Menú de Línea Base
+        MenuItem baseline = menuBar.addItem(VaadinIcon.FLAG.create());
+        baseline.add(" Línea Base");
+        
+        baselineSelector = new ComboBox<>();
+        baselineSelector.setPlaceholder("Seleccionar LB...");
+        baselineSelector.setItemLabelGenerator(ProjectBaseline::getName);
+        baselineSelector.setWidth("200px");
+        baselineSelector.addValueChangeListener(e -> {
+            selectedBaseline = e.getValue();
+            refreshData();
+        });
+        updateBaselineSelector(baselineSelector);
+        
+        baseline.getSubMenu().addItem("Fijar Nueva Línea Base", e -> openNewBaselineDialog(baselineSelector));
+        
+        // Add the selector to the second row
+        baselineRow = new HorizontalLayout(new Span("Ver LB:"), baselineSelector);
+        baselineRow.setAlignItems(Alignment.CENTER);
+        baselineRow.setSpacing(true);
+        baselineRow.setVisible(false); // Default to hidden
+        updateBaselineSelector(baselineSelector);
 
-        Button addTaskBtn = new Button("Añadir Tarea", e -> openTaskDialog(new Task()));
-        addTaskBtn.addThemeVariants(ButtonVariant.LUMO_SUCCESS);
-
-        Button unitToggleBtn = new Button("Unidad: " + (currentProject.getDurationUnit().equals("DAYS") ? "Días" : "Horas"), e -> {
+        // Menú de Configuración
+        MenuItem config = menuBar.addItem(VaadinIcon.COG.create());
+        config.add(" Configuración");
+        config.getSubMenu().addItem("Calendario Laboral", e -> openCalendarDialog());
+        config.getSubMenu().addItem("Visibilidad de Columnas", e -> openColumnConfigDialog());
+        
+        String unitLabel = currentProject.getDurationUnit().equals("DAYS") ? "Cambiar a Horas" : "Cambiar a Días";
+        config.getSubMenu().addItem(unitLabel, e -> {
             String newUnit = currentProject.getDurationUnit().equals("DAYS") ? "HOURS" : "DAYS";
             currentProject.setDurationUnit(newUnit);
             projectService.createOrUpdate(currentProject);
-            e.getSource().setText("Unidad: " + (newUnit.equals("DAYS") ? "Días" : "Horas"));
-            configureGrid();
             refreshData();
         });
-        unitToggleBtn.addThemeVariants(ButtonVariant.LUMO_CONTRAST);
-
-        Button configCalendarBtn = new Button("Configurar Calendario", e -> openCalendarDialog());
-        configCalendarBtn.addThemeVariants(ButtonVariant.LUMO_CONTRAST);
 
         // Header and Actions in two rows for more space
         VerticalLayout topLayout = new VerticalLayout();
@@ -170,7 +209,7 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
         firstRow.setWidthFull();
         firstRow.setJustifyContentMode(JustifyContentMode.BETWEEN);
 
-        HorizontalLayout secondRow = new HorizontalLayout(wbsBtn, criticalPathBtn, groupBtn, addTaskBtn, unitToggleBtn, configCalendarBtn);
+        HorizontalLayout secondRow = new HorizontalLayout(addTaskBtn, menuBar, baselineRow);
         secondRow.setWidthFull();
         secondRow.setJustifyContentMode(JustifyContentMode.START);
         secondRow.setSpacing(true);
@@ -215,87 +254,179 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
         grid.setColumnReorderingAllowed(true);
         grid.addThemeVariants(com.vaadin.flow.component.grid.GridVariant.LUMO_COLUMN_BORDERS, com.vaadin.flow.component.grid.GridVariant.LUMO_ROW_STRIPES);
 
-        grid.addColumn(Task::getWbsCode).setHeader("EDT").setWidth("60px").setFlexGrow(0).setResizable(true);
+        String visible = currentProject.getVisibleColumns();
+        if (visible == null || visible.trim().isEmpty()) {
+            visible = "EDT,Nombre,Pred.,Responsable,Inicio,Fin,Duración,Coste";
+        }
+        
+        this.showBaseline = visible.contains("LB");
 
-        grid.addComponentHierarchyColumn(task -> {
-            String prefix = task.isMilestone() ? "◆ " : "";
-            Span nameSpan = new Span(prefix + task.getName());
-            if (task.isGroup()) {
-                nameSpan.getStyle().set("font-weight", "bold");
-            }
-            if (task.isCritical()) {
-                nameSpan.getStyle().set("color", "#d32f2f");
-            }
-            return nameSpan;
-        }).setHeader("Nombre").setFlexGrow(3).setResizable(true);
+        if (visible.contains("EDT"))
+            grid.addColumn(Task::getWbsCode).setHeader("EDT").setWidth("60px").setFlexGrow(0).setResizable(true);
 
-        grid.addComponentColumn(task -> {
-            TextField predField = new TextField();
-            predField.addThemeVariants(TextFieldVariant.LUMO_SMALL);
-            predField.setPlaceholder("ID");
-            predField.setWidthFull();
-            if (task.getPredecessor() != null) {
-                predField.setValue(task.getPredecessor().getId().toString());
-            }
-            predField.addValueChangeListener(e -> {
-                if (e.isFromClient()) {
-                    String val = e.getValue();
-                    if (val == null || val.trim().isEmpty()) {
-                        task.setPredecessor(null);
-                        task.setDependencyType(TaskDependencyType.NONE);
-                        taskService.saveTask(task);
-                        refreshData();
-                    } else {
-                        try {
-                            Long id = Long.parseLong(val.trim());
-                            Task pred = taskService.getTaskById(id);
-                            if (pred != null && !pred.equals(task)) {
-                                if (pred.isGroup()) {
-                                    Task firstChild = taskService.getFirstChildOfGroup(pred);
-                                    task.setPredecessor(firstChild != null ? firstChild : pred);
+        if (visible.contains("Nombre"))
+            grid.addComponentHierarchyColumn(task -> {
+                String prefix = task.isMilestone() ? "◆ " : "";
+                Span nameSpan = new Span(prefix + task.getName());
+                if (task.isGroup()) nameSpan.getStyle().set("font-weight", "bold");
+                if (task.isCritical()) nameSpan.getStyle().set("color", "#d32f2f");
+                return nameSpan;
+            }).setHeader("Nombre").setFlexGrow(3).setResizable(true);
+
+        if (visible.contains("Pred."))
+            grid.addComponentColumn(task -> {
+                TextField predField = new TextField();
+                predField.addThemeVariants(TextFieldVariant.LUMO_SMALL);
+                predField.setPlaceholder("ID");
+                predField.setWidthFull();
+                if (task.getPredecessor() != null) predField.setValue(task.getPredecessor().getId().toString());
+                predField.addValueChangeListener(e -> {
+                    if (e.isFromClient()) {
+                        String val = e.getValue();
+                        if (val == null || val.trim().isEmpty()) {
+                            task.setPredecessor(null);
+                            task.setDependencyType(TaskDependencyType.NONE);
+                            taskService.saveTask(task);
+                            refreshData();
+                        } else {
+                            try {
+                                Long id = Long.parseLong(val.trim());
+                                Task pred = taskService.getTaskById(id);
+                                if (pred != null && !pred.equals(task)) {
+                                    if (pred.isGroup()) {
+                                        Task firstChild = taskService.getFirstChildOfGroup(pred);
+                                        task.setPredecessor(firstChild != null ? firstChild : pred);
+                                    } else {
+                                        task.setPredecessor(pred);
+                                    }
+                                    if (task.getDependencyType() == TaskDependencyType.NONE || task.getDependencyType() == null) {
+                                        task.setDependencyType(TaskDependencyType.FINISH_TO_START);
+                                    }
+                                    try {
+                                        taskService.saveTask(task);
+                                        refreshData();
+                                    } catch (IllegalStateException ex) {
+                                        Notification.show(ex.getMessage(), 5000, Notification.Position.MIDDLE).addThemeVariants(NotificationVariant.LUMO_ERROR);
+                                        task.setPredecessor(null);
+                                        predField.setValue(e.getOldValue() != null ? e.getOldValue() : "");
+                                    }
                                 } else {
-                                    task.setPredecessor(pred);
-                                }
-                                if (task.getDependencyType() == TaskDependencyType.NONE || task.getDependencyType() == null) {
-                                    task.setDependencyType(TaskDependencyType.FINISH_TO_START);
-                                }
-                                try {
-                                    taskService.saveTask(task);
-                                    refreshData();
-                                } catch (IllegalStateException ex) {
-                                    Notification.show(ex.getMessage(), 5000, Notification.Position.MIDDLE).addThemeVariants(NotificationVariant.LUMO_ERROR);
-                                    task.setPredecessor(null);
+                                    Notification.show("Predecesora inválida");
                                     predField.setValue(e.getOldValue() != null ? e.getOldValue() : "");
                                 }
-                            } else {
-                                Notification.show("Predecesora inválida");
+                            } catch (NumberFormatException ex) {
+                                Notification.show("ID inválido");
                                 predField.setValue(e.getOldValue() != null ? e.getOldValue() : "");
                             }
-                        } catch (NumberFormatException ex) {
-                            Notification.show("ID inválido");
-                            predField.setValue(e.getOldValue() != null ? e.getOldValue() : "");
                         }
                     }
-                }
-            });
-            return predField;
-        }).setHeader("Pred.").setFlexGrow(1).setResizable(true);
+                });
+                return predField;
+            }).setHeader("Pred.").setFlexGrow(1).setResizable(true);
 
-        grid.addColumn(Task::getStartDate).setHeader("Inicio").setFlexGrow(1).setResizable(true);
-        grid.addColumn(Task::getEndDate).setHeader("Fin").setFlexGrow(1).setResizable(true);
+        if (visible.contains("Responsable"))
+            grid.addColumn(t -> t.getAssignee() != null ? t.getAssignee().getName() : "-")
+                .setHeader("Responsable").setFlexGrow(1).setResizable(true);
+
+        if (visible.contains("Inicio"))
+            grid.addColumn(Task::getStartDate).setHeader("Inicio").setFlexGrow(1).setResizable(true);
         
-        grid.addColumn(task -> {
-            if (task.isMilestone()) return "0";
-            long days = ChronoUnit.DAYS.between(task.getStartDate(), task.getEndDate()) + 1;
-            if (currentProject.getDurationUnit().equals("HOURS")) {
-                long hoursPerDay = ChronoUnit.HOURS.between(currentProject.getWorkStartHour(), currentProject.getWorkEndHour());
-                return (days * hoursPerDay) + "h";
-            }
-            return days + "d";
-        }).setHeader("Duración").setFlexGrow(1).setResizable(true);
+        if (visible.contains("Fin"))
+            grid.addColumn(Task::getEndDate).setHeader("Fin").setFlexGrow(1).setResizable(true);
+        
+        if (visible.contains("Duración"))
+            grid.addColumn(task -> {
+                if (task.isMilestone()) return "0";
+                long days = ChronoUnit.DAYS.between(task.getStartDate(), task.getEndDate()) + 1;
+                if (currentProject.getDurationUnit().equals("HOURS")) {
+                    long hoursPerDay = ChronoUnit.HOURS.between(currentProject.getWorkStartHour(), currentProject.getWorkEndHour());
+                    return (days * hoursPerDay) + "h";
+                }
+                return days + "d";
+            }).setHeader("Duración").setFlexGrow(1).setResizable(true);
 
-        grid.addColumn(task -> String.format("%.2f €", calculateTaskCost(task)))
-                .setHeader("Coste").setFlexGrow(1).setResizable(true);
+        if (visible.contains("Coste"))
+            grid.addColumn(task -> String.format("%.2f €", calculateTaskCost(task)))
+                    .setHeader("Coste").setFlexGrow(1).setResizable(true);
+
+        if (showBaseline) {
+            if (visible.contains("Inicio LB"))
+                grid.addColumn(task -> {
+                    TaskBaseline tb = taskBaselineMap.get(task.getId());
+                    return tb != null ? tb.getStartDate().toString() : "-";
+                }).setHeader("Inicio LB").setFlexGrow(1).setResizable(true);
+            
+            if (visible.contains("Fin LB"))
+                grid.addColumn(task -> {
+                    TaskBaseline tb = taskBaselineMap.get(task.getId());
+                    return tb != null ? tb.getEndDate().toString() : "-";
+                }).setHeader("Fin LB").setFlexGrow(1).setResizable(true);
+            
+            if (visible.contains("Duración LB"))
+                grid.addColumn(task -> {
+                    TaskBaseline tb = taskBaselineMap.get(task.getId());
+                    if (tb == null) return "-";
+                    long days = ChronoUnit.DAYS.between(tb.getStartDate(), tb.getEndDate()) + 1;
+                    if (currentProject.getDurationUnit().equals("HOURS")) {
+                        long hoursPerDay = ChronoUnit.HOURS.between(currentProject.getWorkStartHour(), currentProject.getWorkEndHour());
+                        return (days * hoursPerDay) + "h";
+                    }
+                    return days + "d";
+                }).setHeader("Duración LB").setFlexGrow(1).setResizable(true);
+            
+            if (visible.contains("Coste LB"))
+                grid.addColumn(task -> String.format("%.2f €", calculateBaselineTaskCost(task)))
+                        .setHeader("Coste LB").setFlexGrow(1).setResizable(true);
+
+            if (visible.contains("Variación Coste"))
+                grid.addComponentColumn(task -> {
+                    double actual = calculateTaskCost(task);
+                    double baseline = calculateBaselineTaskCost(task);
+                    double diff = actual - baseline;
+                    Span span = new Span(String.format("%+.2f €", diff));
+                    if (diff > 0) span.getStyle().set("color", "red");
+                    else if (diff < 0) span.getStyle().set("color", "green");
+                    return span;
+                }).setHeader("Variación Coste").setFlexGrow(1).setResizable(true);
+        }
+    }
+
+    private void openColumnConfigDialog() {
+        Dialog dialog = new Dialog();
+        dialog.setHeaderTitle("Configurar Columnas");
+        
+        VerticalLayout content = new VerticalLayout();
+        content.setPadding(false);
+        
+        CheckboxGroup<String> group = new CheckboxGroup<>();
+        group.setItems("EDT", "Nombre", "Pred.", "Responsable", "Inicio", "Fin", "Duración", "Coste", "Inicio LB", "Fin LB", "Duración LB", "Coste LB", "Variación Coste");
+        group.addThemeVariants(CheckboxGroupVariant.LUMO_VERTICAL);
+        
+        String visible = currentProject.getVisibleColumns();
+        if (visible != null) {
+            Set<String> initial = Stream.of(visible.split(",")).collect(Collectors.toSet());
+            group.setValue(initial);
+        }
+        
+        content.add(new Span("Selecciona las columnas que deseas visualizar:"), group);
+        dialog.add(content);
+        
+        Button saveBtn = new Button("Guardar", e -> {
+            Set<String> selected = group.getValue();
+            if (selected.isEmpty()) {
+                Notification.show("Debes seleccionar al menos una columna");
+                return;
+            }
+            currentProject.setVisibleColumns(String.join(",", selected));
+            projectService.createOrUpdate(currentProject);
+            refreshData();
+            dialog.close();
+            Notification.show("Configuración de columnas guardada");
+        });
+        saveBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        
+        dialog.getFooter().add(new Button("Cancelar", ev -> dialog.close()), saveBtn);
+        dialog.open();
     }
 
     private void openGroupDialog() {
@@ -324,6 +455,15 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
 
     private void refreshData() {
         tasks = taskService.getTasksByProject(currentProject);
+        
+        // Load baseline data if selected
+        if (selectedBaseline != null) {
+            taskBaselineMap = taskService.getTaskBaselineMap(selectedBaseline);
+        } else {
+            taskBaselineMap.clear();
+        }
+        
+        configureGrid();
 
         Task projectRoot = new Task();
         projectRoot.setId(-1L);
@@ -580,8 +720,30 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
             }
 
             bar.addClickListener(e -> openTaskDialog(task));
-
             canvas.add(bar);
+
+            // Render Baseline if enabled
+            if (showBaseline && taskBaselineMap.containsKey(task.getId())) {
+                TaskBaseline tb = taskBaselineMap.get(task.getId());
+                long bDaysFromStart = ChronoUnit.DAYS.between(viewMinDate, tb.getStartDate());
+                long bTaskDuration = ChronoUnit.DAYS.between(tb.getStartDate(), tb.getEndDate()) + 1;
+                double bLeftPercent = ((double) Math.max(0, bDaysFromStart) / totalViewDays) * 100;
+                double bWidthPercent = ((double) bTaskDuration / totalViewDays) * 100;
+
+                Div bBar = new Div();
+                bBar.getStyle()
+                        .set("position", "absolute")
+                        .set("left", bLeftPercent + "%")
+                        .set("width", bWidthPercent + "%")
+                        .set("top", (topOffset + rowHeight - 6) + "px")
+                        .set("height", "3px")
+                        .set("background-color", "#616161")
+                        .set("border-radius", "1px")
+                        .set("opacity", "0.5")
+                        .set("z-index", "1");
+                canvas.add(bBar);
+            }
+
             topOffset += rowHeight;
         }
 
@@ -999,6 +1161,40 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
         return days * hoursPerDay * costPerHour;
     }
 
+    private double calculateBaselineTaskCost(Task task) {
+        TaskBaseline tb = taskBaselineMap.get(task.getId());
+        if (tb == null) return 0.0;
+        
+        if (task.isGroup()) {
+            List<Task> children = tasks.stream()
+                    .filter(t -> task.equals(t.getParentGroup()))
+                    .toList();
+            double sum = 0;
+            for (Task child : children) {
+                sum += calculateBaselineTaskCost(child);
+            }
+            if (task.getId() != null && task.getId().equals(-1L)) {
+                sum = tasks.stream()
+                        .filter(t -> t.getParentGroup() == null)
+                        .mapToDouble(this::calculateBaselineTaskCost)
+                        .sum();
+            }
+            return sum;
+        }
+
+        if (task.isMilestone() || task.getAssignee() == null || task.getAssignee().getResource() == null) {
+            return 0.0;
+        }
+
+        Double costPerHour = task.getAssignee().getResource().getCostPerHour();
+        if (costPerHour == null) return 0.0;
+
+        long days = ChronoUnit.DAYS.between(tb.getStartDate(), tb.getEndDate()) + 1;
+        long hoursPerDay = ChronoUnit.HOURS.between(currentProject.getWorkStartHour(), currentProject.getWorkEndHour());
+        
+        return days * hoursPerDay * costPerHour;
+    }
+
     private boolean isWorkingDay(LocalDate date) {
         String workingDaysStr = currentProject.getWorkingDays();
         if (workingDaysStr == null || workingDaysStr.isEmpty()) return true;
@@ -1067,5 +1263,35 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
         dialog.getFooter().add(cancelBtn, saveBtn);
 
         dialog.open();
+    }
+
+    private void openNewBaselineDialog(ComboBox<ProjectBaseline> selector) {
+        Dialog dialog = new Dialog();
+        dialog.setHeaderTitle("Fijar Nueva Línea Base");
+        TextField nameField = new TextField("Nombre de la Línea Base");
+        nameField.setPlaceholder("Ej: Plan inicial, Revisión Q1...");
+        nameField.setWidthFull();
+        dialog.add(nameField);
+
+        Button saveBtn = new Button("Fijar", e -> {
+            if (!nameField.isEmpty()) {
+                ProjectBaseline pb = taskService.setBaselineForProject(currentProject, nameField.getValue());
+                updateBaselineSelector(selector);
+                selector.setValue(pb);
+                dialog.close();
+                Notification.show("Línea base '" + pb.getName() + "' establecida");
+            }
+        });
+        saveBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        dialog.getFooter().add(new Button("Cancelar", ev -> dialog.close()), saveBtn);
+        dialog.open();
+    }
+
+    private void updateBaselineSelector(ComboBox<ProjectBaseline> selector) {
+        List<ProjectBaseline> baselines = taskService.getBaselinesByProject(currentProject);
+        selector.setItems(baselines);
+        if (baselineRow != null) {
+            baselineRow.setVisible(!baselines.isEmpty());
+        }
     }
 }

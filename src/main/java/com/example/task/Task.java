@@ -33,6 +33,12 @@ public class Task {
     @NotNull
     private LocalDate endDate;
 
+    @Column(name = "baseline_start_date")
+    private LocalDate baselineStartDate;
+
+    @Column(name = "baseline_end_date")
+    private LocalDate baselineEndDate;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "project_id", nullable = false)
     @NotNull
@@ -187,6 +193,22 @@ public class Task {
 
     public void setSubTasks(List<Task> subTasks) {
         this.subTasks = subTasks;
+    }
+
+    public LocalDate getBaselineStartDate() {
+        return baselineStartDate;
+    }
+
+    public void setBaselineStartDate(LocalDate baselineStartDate) {
+        this.baselineStartDate = baselineStartDate;
+    }
+
+    public LocalDate getBaselineEndDate() {
+        return baselineEndDate;
+    }
+
+    public void setBaselineEndDate(LocalDate baselineEndDate) {
+        this.baselineEndDate = baselineEndDate;
     }
 
     @Override

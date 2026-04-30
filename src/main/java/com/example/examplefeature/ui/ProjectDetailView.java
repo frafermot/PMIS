@@ -64,6 +64,8 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
     private final ResourceService resourceService;
     private Project currentProject;
     private Grid<User> userGrid;
+    private Details usersDetails;
+    private Details scheduleDetails;
 
     // Permissions computed once in buildView
     private boolean isProgramDirector;
@@ -297,10 +299,10 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
             layout.add(new H3("Configurar Cronograma Inicial"), formLayout);
         }
         
-        Details details = new Details("Cronograma", layout);
-        details.setOpened(true);
-        details.setWidthFull();
-        add(details);
+        scheduleDetails = new Details("Cronograma", layout);
+        scheduleDetails.setOpened(true);
+        scheduleDetails.setWidthFull();
+        add(scheduleDetails);
     }
 
     // ─── Users section (collapsible, closed by default) ───────────────────────
@@ -326,10 +328,10 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         updateUserList();
         content.add(userGrid);
 
-        Details details = new Details("Usuarios Asignados", content);
-        details.setOpened(false); // starts closed
-        details.setWidthFull();
-        add(details);
+        usersDetails = new Details("Usuarios Asignados", content);
+        usersDetails.setOpened(false); // starts closed
+        usersDetails.setWidthFull();
+        add(usersDetails);
     }
 
 
@@ -679,8 +681,8 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
                 u.setProject(currentProject);
                 userService.createOrUpdate(u);
             }
-            removeAll();
-            buildView();
+            updateUserList();
+            updateDirectorList();
             dialog.close();
             Notification.show(selected.size() + " usuario(s) asignado(s) exitosamente");
         });
@@ -695,8 +697,8 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         user.setProject(null);
         user.setResource(null); // Also clear resource if unassigned from project
         userService.createOrUpdate(user);
-        removeAll();
-        buildView(); // Refresh resource section
+        updateUserList();
+        updateDirectorList();
         Notification.show("Usuario desasignado exitosamente");
     }
 
@@ -721,8 +723,7 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         Button saveBtn = new Button("Guardar", e -> {
             user.setResource(resourceSelect.getValue());
             userService.createOrUpdate(user);
-            removeAll();
-            buildView(); // Refresh sections
+            updateUserList();
             dialog.close();
             Notification.show("Recurso asignado correctamente");
         });

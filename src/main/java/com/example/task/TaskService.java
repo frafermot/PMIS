@@ -11,14 +11,21 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.time.LocalDateTime;
 
 @Service
 public class TaskService {
 
     private final TaskRepository taskRepository;
+    private final ProjectBaselineRepository projectBaselineRepository;
+    private final TaskBaselineRepository taskBaselineRepository;
 
-    public TaskService(TaskRepository taskRepository) {
+    public TaskService(TaskRepository taskRepository, 
+                       ProjectBaselineRepository projectBaselineRepository,
+                       TaskBaselineRepository taskBaselineRepository) {
         this.taskRepository = taskRepository;
+        this.projectBaselineRepository = projectBaselineRepository;
+        this.taskBaselineRepository = taskBaselineRepository;
     }
 
     public List<Task> getTasksByProject(Project project) {
@@ -297,5 +304,48 @@ public class TaskService {
                 }
             }
         }
+    }
+
+    @Transactional
+    public void setBaselineForProject(Project project) {
+        setBaselineForProject(project, "Línea Base " + LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")));
+    }
+
+    @Transactional
+    public ProjectBaseline setBaselineForProject(Project project, String name) {
+        ProjectBaseline pb = new ProjectBaseline();
+        pb.setProject(project);
+        pb.setName(name);
+        pb = projectBaselineRepository.save(pb);
+
+        List<Task> allTasks = taskRepository.findByProjectOrderByStartDateAsc(project);
+        for (Task t : allTasks) {
+            TaskBaseline tb = new TaskBaseline();
+            tb.setProjectBaseline(pb);
+            tb.setTask(t);
+            tb.setStartDate(t.getStartDate());
+            tb.setEndDate(t.getEndDate());
+            taskBaselineRepository.save(tb);
+            
+            // Also update the legacy fields in Task for backward compatibility/simplicity in some views
+            t.setBaselineStartDate(t.getStartDate());
+            t.setBaselineEndDate(t.getEndDate());
+            taskRepository.save(t);
+        }
+        return pb;
+    }
+
+    public List<ProjectBaseline> getBaselinesByProject(Project project) {
+        return projectBaselineRepository.findByProjectOrderByCreatedAtDesc(project);
+    }
+
+    public List<TaskBaseline> getTaskBaselines(ProjectBaseline pb) {
+        return taskBaselineRepository.findByProjectBaseline(pb);
+    }
+
+    public java.util.Map<Long, TaskBaseline> getTaskBaselineMap(ProjectBaseline pb) {
+        if (pb == null) return new java.util.HashMap<>();
+        return getTaskBaselines(pb).stream()
+                .collect(Collectors.toMap(tb -> tb.getTask().getId(), tb -> tb));
     }
 }

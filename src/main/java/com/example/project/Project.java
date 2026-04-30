@@ -56,6 +56,17 @@ public class Project {
     @Column(name = "duration_unit")
     private String durationUnit = "DAYS"; // "DAYS" or "HOURS"
 
+    @Column(name = "visible_columns", length = 500)
+    private String visibleColumns = "EDT,Nombre,Pred.,Responsable,Inicio,Fin,Duración,Coste";
+
+    public String getVisibleColumns() {
+        return visibleColumns;
+    }
+
+    public void setVisibleColumns(String visibleColumns) {
+        this.visibleColumns = visibleColumns;
+    }
+
     public String getDurationUnit() {
         return durationUnit;
     }
