@@ -17,9 +17,11 @@ import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.html.H2;
+import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.textfield.NumberField;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.router.Menu;
 import com.vaadin.flow.router.PageTitle;
@@ -161,6 +163,8 @@ public class PmoView extends VerticalLayout {
         resourceGrid.addColumn(Resource::getId).setHeader("ID").setWidth("60px").setFlexGrow(0);
         resourceGrid.addColumn(Resource::getResourceType).setHeader("Tipo de Recurso").setFlexGrow(1);
         resourceGrid.addColumn(Resource::getProfessionalProfile).setHeader("Perfil Profesional").setFlexGrow(1);
+        resourceGrid.addColumn(res -> res.getCostPerHour() != null ? res.getCostPerHour() + " €/h" : "-")
+                .setHeader("Coste/Hora").setFlexGrow(1);
 
         resourceGrid.asSingleSelect().addValueChangeListener(event -> {
             if (event.getValue() != null) {
@@ -181,13 +185,16 @@ public class PmoView extends VerticalLayout {
 
         TextField typeField = new TextField("Tipo de Recurso");
         TextField profileField = new TextField("Perfil Profesional");
+        NumberField costField = new NumberField("Coste (€/h)");
+        costField.setSuffixComponent(new Span("€/h"));
 
         if (resource != null) {
             typeField.setValue(resource.getResourceType() != null ? resource.getResourceType() : "");
             profileField.setValue(resource.getProfessionalProfile() != null ? resource.getProfessionalProfile() : "");
+            costField.setValue(resource.getCostPerHour());
         }
 
-        VerticalLayout dialogLayout = new VerticalLayout(typeField, profileField);
+        VerticalLayout dialogLayout = new VerticalLayout(typeField, profileField, costField);
         dialog.add(dialogLayout);
 
         Button saveButton = new Button("Guardar", e -> {
@@ -199,6 +206,7 @@ public class PmoView extends VerticalLayout {
             Resource resToSave = resource == null ? new Resource() : resource;
             resToSave.setResourceType(typeField.getValue());
             resToSave.setProfessionalProfile(profileField.getValue());
+            resToSave.setCostPerHour(costField.getValue());
 
             resourceService.save(resToSave);
             updateResourceList();

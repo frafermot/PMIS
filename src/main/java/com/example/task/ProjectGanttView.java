@@ -243,7 +243,7 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
 
         grid.addColumn(Task::getStartDate).setHeader("Inicio").setFlexGrow(1).setResizable(true);
         grid.addColumn(Task::getEndDate).setHeader("Fin").setFlexGrow(1).setResizable(true);
-        grid.addColumn(task -> ChronoUnit.DAYS.between(task.getStartDate(), task.getEndDate()) + 1 + "d")
+        grid.addColumn(task -> task.isMilestone() ? "0d" : (ChronoUnit.DAYS.between(task.getStartDate(), task.getEndDate()) + 1 + "d"))
                 .setHeader("Duración").setFlexGrow(1).setResizable(true);
 
         // Double click row to edit, so we don't interfere with selection
@@ -406,6 +406,21 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
                     .set("width", "1px")
                     .set("background-color", "#f0f0f0")
                     .set("z-index", "0");
+            
+            if (!isWorkingDay(date)) {
+                Div holidayShade = new Div();
+                holidayShade.getStyle()
+                        .set("position", "absolute")
+                        .set("left", ((double) i / totalViewDays * 100) + "%")
+                        .set("top", "56px")
+                        .set("height", "calc(100% - 56px)")
+                        .set("width", (100.0 / totalViewDays) + "%")
+                        .set("background-color", "#f0f0f0")
+                        .set("opacity", "0.5")
+                        .set("z-index", "0");
+                canvas.add(holidayShade);
+            }
+            
             canvas.add(verticalLine);
 
             // Day marker
@@ -505,12 +520,11 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
             if (task.isMilestone()) {
                 bar.setText("");
                 bar.getStyle()
-                        .set("width", "16px")
-                        .set("height", "16px")
-                        .set("transform", "rotate(45deg)")
-                        .set("border-radius", "0px")
-                        .set("top", (topOffset + (rowHeight - 16) / 2) + "px")
-                        .set("margin-left", "-8px"); // center the diamond on the date
+                        .set("width", "12px")
+                        .set("height", "12px")
+                        .set("border-radius", "50%")
+                        .set("top", (topOffset + (rowHeight - 12) / 2) + "px")
+                        .set("margin-left", "-6px"); // center the point on the date
             } else {
                 bar.getStyle()
                         .set("width", widthPercent + "%")
@@ -637,11 +651,12 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
         // Reactivity for Duration
         durationField.addValueChangeListener(e -> {
             if (e.isFromClient() && e.getValue() != null && startDateField.getValue() != null) {
-                int val = Math.max(1, e.getValue());
-                if (val != e.getValue()) {
-                    durationField.setValue(val);
+                int val = e.getValue();
+                if (val < 0) {
+                    durationField.setValue(0);
+                    val = 0;
                 }
-                endDateField.setValue(startDateField.getValue().plusDays(val - 1));
+                endDateField.setValue(startDateField.getValue().plusDays(val > 0 ? val - 1 : 0));
             }
         });
 
@@ -740,6 +755,23 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
 
         com.vaadin.flow.component.checkbox.Checkbox milestoneBox = new com.vaadin.flow.component.checkbox.Checkbox("Hito (Milestone)");
         binder.forField(milestoneBox).bind(Task::isMilestone, Task::setMilestone);
+
+        milestoneBox.addValueChangeListener(e -> {
+            boolean isMilestone = e.getValue();
+            durationField.setEnabled(!isMilestone);
+            endDateField.setEnabled(!isMilestone);
+            if (isMilestone) {
+                durationField.setValue(0);
+                if (startDateField.getValue() != null) {
+                    endDateField.setValue(startDateField.getValue());
+                }
+            } else if (durationField.getValue() == 0) {
+                durationField.setValue(1);
+                if (startDateField.getValue() != null) {
+                    endDateField.setValue(startDateField.getValue());
+                }
+            }
+        });
 
         if (task.getId() == null) {
             task.setProject(currentProject);
@@ -854,5 +886,14 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
                 .set("z-index", "4")
                 .set("pointer-events", "none");
         canvas.add(arrow);
+    }
+
+    private boolean isWorkingDay(LocalDate date) {
+        String workingDaysStr = currentProject.getWorkingDays();
+        if (workingDaysStr == null || workingDaysStr.isEmpty()) return true;
+        java.util.Set<java.time.DayOfWeek> workingDays = java.util.Arrays.stream(workingDaysStr.split(","))
+                .map(java.time.DayOfWeek::valueOf)
+                .collect(java.util.stream.Collectors.toSet());
+        return workingDays.contains(date.getDayOfWeek());
     }
 }

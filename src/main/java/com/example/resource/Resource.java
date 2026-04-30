@@ -21,6 +21,9 @@ public class Resource {
     @Column(name = "professional_profile")
     private String professionalProfile;
 
+    @Column(name = "cost_per_hour")
+    private Double costPerHour;
+
     public Long getId() {
         return id;
     }
@@ -43,6 +46,14 @@ public class Resource {
 
     public void setProfessionalProfile(String professionalProfile) {
         this.professionalProfile = professionalProfile;
+    }
+
+    public Double getCostPerHour() {
+        return costPerHour;
+    }
+
+    public void setCostPerHour(Double costPerHour) {
+        this.costPerHour = costPerHour;
     }
 
     @Override

@@ -4,9 +4,13 @@ import com.example.project.Project;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class TaskService {
@@ -127,30 +131,33 @@ public class TaskService {
     private void calculateDatesBasedOnDependency(Task task) {
         if (task.getPredecessor() != null && task.getDependencyType() != TaskDependencyType.NONE) {
             long durationDays = ChronoUnit.DAYS.between(task.getStartDate(), task.getEndDate());
+            Project project = task.getProject();
             
             switch (task.getDependencyType()) {
                 case FINISH_TO_START:
-                    if (task.getStartDate().isBefore(task.getPredecessor().getEndDate().plusDays(1))) {
-                        task.setStartDate(task.getPredecessor().getEndDate().plusDays(1));
-                        task.setEndDate(task.getStartDate().plusDays(durationDays));
+                    LocalDate nextDay = getNextWorkingDay(task.getPredecessor().getEndDate().plusDays(1), project);
+                    if (task.getStartDate().isBefore(nextDay)) {
+                        task.setStartDate(nextDay);
+                        task.setEndDate(addWorkingDays(task.getStartDate(), durationDays, project));
                     }
                     break;
                 case START_TO_START:
                     if (task.getStartDate().isBefore(task.getPredecessor().getStartDate())) {
                         task.setStartDate(task.getPredecessor().getStartDate());
-                        task.setEndDate(task.getStartDate().plusDays(durationDays));
+                        task.setEndDate(addWorkingDays(task.getStartDate(), durationDays, project));
                     }
                     break;
                 case FINISH_TO_FINISH:
                     if (task.getEndDate().isBefore(task.getPredecessor().getEndDate())) {
                         task.setEndDate(task.getPredecessor().getEndDate());
-                        task.setStartDate(task.getEndDate().minusDays(durationDays));
+                        task.setStartDate(subtractWorkingDays(task.getEndDate(), durationDays, project));
                     }
                     break;
                 case START_TO_FINISH:
-                    if (task.getEndDate().isBefore(task.getPredecessor().getStartDate().plusDays(1))) {
-                        task.setEndDate(task.getPredecessor().getStartDate().plusDays(1));
-                        task.setStartDate(task.getEndDate().minusDays(durationDays));
+                    LocalDate startToFinishDay = getNextWorkingDay(task.getPredecessor().getStartDate().plusDays(1), project);
+                    if (task.getEndDate().isBefore(startToFinishDay)) {
+                        task.setEndDate(startToFinishDay);
+                        task.setStartDate(subtractWorkingDays(task.getEndDate(), durationDays, project));
                     }
                     break;
                 case NONE:
@@ -158,6 +165,47 @@ public class TaskService {
                     break;
             }
         }
+    }
+
+    private LocalDate getNextWorkingDay(LocalDate date, Project project) {
+        LocalDate current = date;
+        while (!isWorkingDay(current, project)) {
+            current = current.plusDays(1);
+        }
+        return current;
+    }
+
+    private boolean isWorkingDay(LocalDate date, Project project) {
+        String workingDaysStr = project.getWorkingDays();
+        if (workingDaysStr == null || workingDaysStr.isEmpty()) return true;
+        Set<DayOfWeek> workingDays = Arrays.stream(workingDaysStr.split(","))
+                .map(DayOfWeek::valueOf)
+                .collect(Collectors.toSet());
+        return workingDays.contains(date.getDayOfWeek());
+    }
+
+    private LocalDate addWorkingDays(LocalDate start, long duration, Project project) {
+        LocalDate result = start;
+        int added = 0;
+        while (added < duration) {
+            result = result.plusDays(1);
+            if (isWorkingDay(result, project)) {
+                added++;
+            }
+        }
+        return result;
+    }
+
+    private LocalDate subtractWorkingDays(LocalDate end, long duration, Project project) {
+        LocalDate result = end;
+        int subtracted = 0;
+        while (subtracted < duration) {
+            result = result.minusDays(1);
+            if (isWorkingDay(result, project)) {
+                subtracted++;
+            }
+        }
+        return result;
     }
 
     private void updateSuccessorDates(Task predecessor) {

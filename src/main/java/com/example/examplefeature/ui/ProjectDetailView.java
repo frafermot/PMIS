@@ -10,6 +10,7 @@ import com.example.document.DocumentType;
 import com.example.project.Project;
 import com.example.project.ProjectService;
 import com.example.resource.Resource;
+import com.example.resource.ResourceService;
 import com.example.security.SecurityService;
 import com.example.task.TaskService;
 import com.example.user.Role;
@@ -31,18 +32,22 @@ import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.component.textfield.TextField;
+import com.vaadin.flow.component.checkbox.CheckboxGroup;
+import com.vaadin.flow.component.checkbox.CheckboxGroupVariant;
+import com.vaadin.flow.component.timepicker.TimePicker;
 import com.vaadin.flow.router.BeforeEvent;
 import com.vaadin.flow.router.HasUrlParameter;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import jakarta.annotation.security.RolesAllowed;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.time.LocalTime;
+import java.time.format.TextStyle;
+import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Route(value = "proyecto", layout = MainLayout.class)
 @PageTitle("Detalle de Proyecto")
@@ -55,8 +60,9 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
     private final CccService cccService;
     private final DocumentService documentService;
     private final TaskService taskService;
+    private final ResourceService resourceService;
     private Project currentProject;
-    private final Grid<User> userGrid = new Grid<>(User.class, false);
+    private Grid<User> userGrid;
 
     // Permissions computed once in buildView
     private boolean isProgramDirector;
@@ -84,13 +90,15 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
 
     public ProjectDetailView(ProjectService projectService, UserService userService,
             SecurityService securityService, CccService cccService,
-            DocumentService documentService, TaskService taskService) {
+            DocumentService documentService, TaskService taskService,
+            ResourceService resourceService) {
         this.projectService = projectService;
         this.userService = userService;
         this.securityService = securityService;
         this.cccService = cccService;
         this.documentService = documentService;
         this.taskService = taskService;
+        this.resourceService = resourceService;
 
         setSizeFull();
         setPadding(true);
@@ -126,7 +134,7 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         buildProjectInfoSection();
         buildScheduleSection();
         buildUsersSection();
-        buildResourcesSection();
+        buildCalendarSection();
         buildDocumentsSection();
     }
 
@@ -318,6 +326,8 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         boolean isProjectDirector = currentProject.getDirector() != null && cu != null
                 && currentProject.getDirector().getId().equals(cu.getId());
         boolean canManageUsers = isSystemAdmin || isSponsor || isProjectDirector;
+        
+        userGrid = new Grid<>(User.class, false);
 
         VerticalLayout content = new VerticalLayout();
         content.setPadding(false);
@@ -336,43 +346,60 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         add(details);
     }
 
-    // ─── Resources section ───────────────────────────────────────────────────
 
-    private record ProjectResourceRow(User user, Resource resource) {}
+    // ─── Calendar section ───────────────────────────────────────────────────
 
-    private void buildResourcesSection() {
+    private void buildCalendarSection() {
         VerticalLayout content = new VerticalLayout();
-        content.setPadding(false);
+        content.setPadding(true);
+        content.setSpacing(true);
 
-        Grid<ProjectResourceRow> resourceGrid = new Grid<>();
-        resourceGrid.setWidthFull();
-        resourceGrid.setHeight("250px");
+        H3 title = new H3("Configuración de Calendario Laboral");
         
-        resourceGrid.addColumn(r -> r.resource().getId())
-                .setHeader("ID Recurso").setWidth("100px").setFlexGrow(0);
-        resourceGrid.addColumn(r -> r.resource().getResourceType())
-                .setHeader("Tipo").setFlexGrow(1);
-        resourceGrid.addColumn(r -> r.resource().getProfessionalProfile())
-                .setHeader("Perfil Profesional").setFlexGrow(1);
-        resourceGrid.addColumn(r -> r.user().getName())
-                .setHeader("Usuario Asignado").setFlexGrow(1);
+        CheckboxGroup<DayOfWeek> workingDaysGroup = new CheckboxGroup<>();
+        workingDaysGroup.setLabel("Días Laborables");
+        workingDaysGroup.setItems(DayOfWeek.values());
+        workingDaysGroup.setItemLabelGenerator(day -> day.getDisplayName(TextStyle.FULL, new Locale("es", "ES")));
+        workingDaysGroup.addThemeVariants(CheckboxGroupVariant.LUMO_VERTICAL);
+        
+        // Initial value from project
+        String[] savedDays = currentProject.getWorkingDays().split(",");
+        Set<DayOfWeek> initialDays = Stream.of(savedDays)
+                .filter(s -> !s.isEmpty())
+                .map(DayOfWeek::valueOf)
+                .collect(Collectors.toSet());
+        workingDaysGroup.setValue(initialDays);
 
-        List<User> projectUsers = userService.findByProject(currentProject.getId());
-        List<ProjectResourceRow> rows = projectUsers.stream()
-                .filter(u -> u.getResource() != null)
-                .map(u -> new ProjectResourceRow(u, u.getResource()))
-                .toList();
+        TimePicker startTime = new TimePicker("Hora Inicio Jornada");
+        startTime.setValue(currentProject.getWorkStartHour());
+        
+        TimePicker endTime = new TimePicker("Hora Fin Jornada");
+        endTime.setValue(currentProject.getWorkEndHour());
 
-        resourceGrid.setItems(rows);
-        content.add(resourceGrid);
+        Button saveCalendarBtn = new Button("Guardar Calendario", e -> {
+            Set<DayOfWeek> selectedDays = workingDaysGroup.getValue();
+            String daysStr = selectedDays.stream()
+                    .map(DayOfWeek::name)
+                    .collect(Collectors.joining(","));
+            currentProject.setWorkingDays(daysStr);
+            currentProject.setWorkStartHour(startTime.getValue());
+            currentProject.setWorkEndHour(endTime.getValue());
+            
+            projectService.createOrUpdate(currentProject);
+            Notification.show("Calendario del proyecto actualizado");
+        });
+        saveCalendarBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
 
-        Details details = new Details("Recursos del Proyecto", content);
+        HorizontalLayout timesLayout = new HorizontalLayout(startTime, endTime);
+        timesLayout.setAlignItems(Alignment.END);
+
+        content.add(title, workingDaysGroup, timesLayout, saveCalendarBtn);
+
+        Details details = new Details("Calendario del Proyecto", content);
         details.setOpened(false);
         details.setWidthFull();
         add(details);
     }
-
-    // ─── Documents section ───────────────────────────────────────────────────
 
     private void buildDocumentsSection() {
         // Seed documents (idempotent)
@@ -641,12 +668,27 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         userGrid.addColumn(User::getId).setHeader("ID").setWidth("60px").setFlexGrow(0);
         userGrid.addColumn(User::getName).setHeader("Nombre").setFlexGrow(2);
         userGrid.addColumn(User::getUvus).setHeader("UVUS").setFlexGrow(1);
+        
+        userGrid.addColumn(u -> {
+            Resource r = u.getResource();
+            if (r == null) return "-";
+            String cost = r.getCostPerHour() != null ? " (" + r.getCostPerHour() + " €/h)" : "";
+            return r.getResourceType() + " - " + r.getProfessionalProfile() + cost;
+        }).setHeader("Recurso PMO").setFlexGrow(1);
+
         if (canManageUsers) {
             userGrid.addComponentColumn(user -> {
+                HorizontalLayout actions = new HorizontalLayout();
+                
+                Button assignResourceBtn = new Button("Vincular Recurso", e -> openAssignResourceDialog(user));
+                assignResourceBtn.addThemeVariants(ButtonVariant.LUMO_SMALL);
+                
                 Button removeButton = new Button("Eliminar", e -> unassignUser(user));
                 removeButton.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_ERROR);
-                return removeButton;
-            }).setHeader("").setWidth("100px").setFlexGrow(0);
+                
+                actions.add(assignResourceBtn, removeButton);
+                return actions;
+            }).setHeader("Acciones").setWidth("250px").setFlexGrow(0);
         }
         userGrid.setHeight("250px");
         userGrid.setPageSize(10);
@@ -707,8 +749,8 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
                 u.setProject(currentProject);
                 userService.createOrUpdate(u);
             }
-            updateUserList();
-            updateDirectorList();
+            removeAll();
+            buildView();
             dialog.close();
             Notification.show(selected.size() + " usuario(s) asignado(s) exitosamente");
         });
@@ -721,9 +763,43 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
 
     private void unassignUser(User user) {
         user.setProject(null);
+        user.setResource(null); // Also clear resource if unassigned from project
         userService.createOrUpdate(user);
-        updateUserList();
-        updateDirectorList();
+        removeAll();
+        buildView(); // Refresh resource section
         Notification.show("Usuario desasignado exitosamente");
+    }
+
+    private void openAssignResourceDialog(User user) {
+        Dialog dialog = new Dialog();
+        dialog.setHeaderTitle("Asignar Recurso PMO a " + user.getName());
+        dialog.setWidth("500px");
+
+        VerticalLayout layout = new VerticalLayout();
+        
+        Select<Resource> resourceSelect = new Select<>();
+        resourceSelect.setLabel("Seleccionar Recurso");
+        resourceSelect.setItems(resourceService.findAll());
+        resourceSelect.setItemLabelGenerator(r -> r.getResourceType() + " - " + r.getProfessionalProfile() + 
+                (r.getCostPerHour() != null ? " (" + r.getCostPerHour() + " €/h)" : ""));
+        resourceSelect.setValue(user.getResource());
+        resourceSelect.setWidthFull();
+        
+        layout.add(resourceSelect);
+        dialog.add(layout);
+
+        Button saveBtn = new Button("Guardar", e -> {
+            user.setResource(resourceSelect.getValue());
+            userService.createOrUpdate(user);
+            removeAll();
+            buildView(); // Refresh sections
+            dialog.close();
+            Notification.show("Recurso asignado correctamente");
+        });
+        saveBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        
+        dialog.getFooter().add(new Button("Cancelar", e -> dialog.close()));
+        dialog.getFooter().add(saveBtn);
+        dialog.open();
     }
 }

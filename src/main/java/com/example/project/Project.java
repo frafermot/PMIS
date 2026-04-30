@@ -44,6 +44,39 @@ public class Project {
     @Column(name = "end_date")
     private LocalDate endDate;
 
+    @Column(name = "working_days")
+    private String workingDays = "MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY";
+
+    @Column(name = "work_start_hour")
+    private java.time.LocalTime workStartHour = java.time.LocalTime.of(9, 0);
+
+    @Column(name = "work_end_hour")
+    private java.time.LocalTime workEndHour = java.time.LocalTime.of(18, 0);
+
+    public String getWorkingDays() {
+        return workingDays;
+    }
+
+    public void setWorkingDays(String workingDays) {
+        this.workingDays = workingDays;
+    }
+
+    public java.time.LocalTime getWorkStartHour() {
+        return workStartHour;
+    }
+
+    public void setWorkStartHour(java.time.LocalTime workStartHour) {
+        this.workStartHour = workStartHour;
+    }
+
+    public java.time.LocalTime getWorkEndHour() {
+        return workEndHour;
+    }
+
+    public void setWorkEndHour(java.time.LocalTime workEndHour) {
+        this.workEndHour = workEndHour;
+    }
+
     public Long getId() {
         return id;
     }
