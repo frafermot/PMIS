@@ -184,4 +184,70 @@ public class TaskService {
         }
         return false;
     }
+
+    @Transactional
+    public void assignWBS(Project project) {
+        List<Task> allTasks = taskRepository.findByProjectOrderByStartDateAsc(project);
+        List<Task> topLevel = allTasks.stream().filter(t -> t.getParentGroup() == null).toList();
+        
+        int counter = 1;
+        for (Task t : topLevel) {
+            String code = "1." + counter;
+            t.setWbsCode(code);
+            taskRepository.save(t);
+            assignWBSChildren(t, code, allTasks);
+            counter++;
+        }
+    }
+
+    private void assignWBSChildren(Task parent, String parentCode, List<Task> allTasks) {
+        List<Task> children = allTasks.stream().filter(t -> parent.equals(t.getParentGroup())).toList();
+        int counter = 1;
+        for (Task child : children) {
+            String code = parentCode + "." + counter;
+            child.setWbsCode(code);
+            taskRepository.save(child);
+            assignWBSChildren(child, code, allTasks);
+            counter++;
+        }
+    }
+
+    @Transactional
+    public void calculateCriticalPath(Project project) {
+        List<Task> allTasks = taskRepository.findByProjectOrderByStartDateAsc(project);
+        
+        for (Task t : allTasks) {
+            t.setCritical(false);
+        }
+
+        if (allTasks.isEmpty()) return;
+        
+        LocalDate maxEndDate = allTasks.stream().map(Task::getEndDate).max(LocalDate::compareTo).orElse(null);
+        if (maxEndDate == null) return;
+        
+        List<Task> terminalTasks = allTasks.stream()
+            .filter(t -> t.getEndDate().equals(maxEndDate))
+            .toList();
+            
+        for (Task t : terminalTasks) {
+            markCriticalPath(t);
+        }
+        
+        taskRepository.saveAll(allTasks);
+    }
+    
+    private void markCriticalPath(Task task) {
+        if (task == null || task.isCritical()) return;
+        task.setCritical(true);
+        if (task.getPredecessor() != null && task.getDependencyType() != TaskDependencyType.NONE) {
+            markCriticalPath(task.getPredecessor());
+        }
+        if (task.isGroup()) {
+            for (Task child : task.getSubTasks()) {
+                if (child.getEndDate().equals(task.getEndDate())) {
+                    markCriticalPath(child);
+                }
+            }
+        }
+    }
 }

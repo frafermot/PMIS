@@ -36,6 +36,7 @@ import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import jakarta.annotation.security.RolesAllowed;
 
+import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -255,18 +256,50 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         }
     }
 
-    // ─── Schedule section ────────────────────────────────────────────────────────
-    
     private void buildScheduleSection() {
         VerticalLayout layout = new VerticalLayout();
         layout.setPadding(false);
         
-        Button openGanttBtn = new Button("Abrir Cronograma Completo", e -> {
-            UI.getCurrent().navigate("proyecto/" + currentProject.getId() + "/gantt");
-        });
-        openGanttBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_LARGE);
-        layout.add(openGanttBtn);
-        layout.setAlignItems(Alignment.CENTER);
+        boolean hasTasks = !taskService.getTasksByProject(currentProject).isEmpty();
+        
+        if (hasTasks) {
+            Button openGanttBtn = new Button("Abrir Cronograma Completo", e -> {
+                UI.getCurrent().navigate("proyecto/" + currentProject.getId() + "/gantt");
+            });
+            openGanttBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_LARGE);
+            layout.add(openGanttBtn);
+            layout.setAlignItems(Alignment.CENTER);
+        } else {
+            HorizontalLayout formLayout = new HorizontalLayout();
+            formLayout.setWidthFull();
+            formLayout.setAlignItems(Alignment.END);
+            
+            DatePicker startField = new DatePicker("Fecha de Inicio");
+            startField.setValue(currentProject.getStartDate() != null ? currentProject.getStartDate() : LocalDate.now());
+            
+            DatePicker endField = new DatePicker("Fecha de Fin");
+            endField.setValue(currentProject.getEndDate() != null ? currentProject.getEndDate() : LocalDate.now().plusDays(30));
+            
+            Button initBtn = new Button("Crear Cronograma", e -> {
+                if (startField.isEmpty() || endField.isEmpty()) {
+                    Notification.show("Rellena las fechas de inicio y fin");
+                    return;
+                }
+                if (endField.getValue().isBefore(startField.getValue())) {
+                    Notification.show("La fecha de fin no puede ser anterior a la de inicio");
+                    return;
+                }
+                currentProject.setStartDate(startField.getValue());
+                currentProject.setEndDate(endField.getValue());
+                projectService.createOrUpdate(currentProject);
+
+                UI.getCurrent().navigate("proyecto/" + currentProject.getId() + "/gantt");
+            });
+            initBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+            
+            formLayout.add(startField, endField, initBtn);
+            layout.add(new H3("Configurar Cronograma Inicial"), formLayout);
+        }
         
         Details details = new Details("Cronograma", layout);
         details.setOpened(true);

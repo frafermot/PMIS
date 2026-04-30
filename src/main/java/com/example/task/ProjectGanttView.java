@@ -116,13 +116,25 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
         Button backBtn = new Button("Volver", e -> UI.getCurrent().navigate("proyecto/" + currentProject.getId()));
         titleGroup.add(backBtn, new H2("Cronograma: " + currentProject.getName()));
 
+        Button wbsBtn = new Button("Asignar EDT", e -> {
+            taskService.assignWBS(currentProject);
+            refreshData();
+        });
+        wbsBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+
+        Button criticalPathBtn = new Button("Ruta Crítica", e -> {
+            taskService.calculateCriticalPath(currentProject);
+            refreshData();
+        });
+        criticalPathBtn.addThemeVariants(ButtonVariant.LUMO_ERROR);
+
         Button groupBtn = new Button("Agrupar Selección", e -> openGroupDialog());
         groupBtn.addThemeVariants(ButtonVariant.LUMO_CONTRAST);
 
         Button addTaskBtn = new Button("Añadir Tarea", e -> openTaskDialog(new Task()));
-        addTaskBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        addTaskBtn.addThemeVariants(ButtonVariant.LUMO_SUCCESS);
 
-        HorizontalLayout actions = new HorizontalLayout(groupBtn, addTaskBtn);
+        HorizontalLayout actions = new HorizontalLayout(wbsBtn, criticalPathBtn, groupBtn, addTaskBtn);
         header.add(titleGroup, actions);
         add(header);
 
@@ -157,26 +169,31 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
 
     private void configureGrid() {
         grid.setSizeFull();
+        grid.setSelectionMode(SelectionMode.NONE);
         grid.removeAllColumns();
         grid.setSelectionMode(SelectionMode.MULTI);
         grid.setColumnReorderingAllowed(true);
         grid.addThemeVariants(com.vaadin.flow.component.grid.GridVariant.LUMO_COLUMN_BORDERS, com.vaadin.flow.component.grid.GridVariant.LUMO_ROW_STRIPES);
 
+        grid.addColumn(Task::getWbsCode).setHeader("EDT").setWidth("60px").setFlexGrow(0).setResizable(true);
+
         grid.addComponentHierarchyColumn(task -> {
-            Span nameSpan = new Span(task.getName());
+            String prefix = task.isMilestone() ? "◆ " : "";
+            Span nameSpan = new Span(prefix + task.getName());
             if (task.isGroup()) {
                 nameSpan.getStyle().set("font-weight", "bold");
             }
+            if (task.isCritical()) {
+                nameSpan.getStyle().set("color", "#d32f2f");
+            }
             return nameSpan;
-        }).setHeader("Nombre").setFlexGrow(1).setResizable(true);
-
-        grid.addColumn(Task::getId).setHeader("ID").setWidth("50px").setFlexGrow(0).setResizable(true);
+        }).setHeader("Nombre").setFlexGrow(3).setResizable(true);
 
         grid.addComponentColumn(task -> {
             TextField predField = new TextField();
             predField.addThemeVariants(TextFieldVariant.LUMO_SMALL);
             predField.setPlaceholder("ID");
-            predField.setWidth("50px");
+            predField.setWidthFull();
             if (task.getPredecessor() != null) {
                 predField.setValue(task.getPredecessor().getId().toString());
             }
@@ -222,12 +239,12 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
                 }
             });
             return predField;
-        }).setHeader("Pred.").setWidth("70px").setFlexGrow(0).setResizable(true);
+        }).setHeader("Pred.").setFlexGrow(1).setResizable(true);
 
-        grid.addColumn(Task::getStartDate).setHeader("Inicio").setWidth("100px").setFlexGrow(0).setResizable(true);
-        grid.addColumn(Task::getEndDate).setHeader("Fin").setWidth("100px").setFlexGrow(0).setResizable(true);
+        grid.addColumn(Task::getStartDate).setHeader("Inicio").setFlexGrow(1).setResizable(true);
+        grid.addColumn(Task::getEndDate).setHeader("Fin").setFlexGrow(1).setResizable(true);
         grid.addColumn(task -> ChronoUnit.DAYS.between(task.getStartDate(), task.getEndDate()) + 1 + "d")
-                .setHeader("Duración").setWidth("60px").setFlexGrow(0).setResizable(true);
+                .setHeader("Duración").setFlexGrow(1).setResizable(true);
 
         // Double click row to edit, so we don't interfere with selection
         grid.addItemDoubleClickListener(e -> openTaskDialog(e.getItem()));
@@ -260,9 +277,25 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
     private void refreshData() {
         tasks = taskService.getTasksByProject(currentProject);
 
-        List<Task> roots = tasks.stream().filter(t -> t.getParentGroup() == null).toList();
-        grid.setItems(roots, task -> tasks.stream().filter(t -> task.equals(t.getParentGroup())).toList());
-        grid.expand(roots);
+        Task projectRoot = new Task();
+        projectRoot.setId(-1L);
+        projectRoot.setName(currentProject.getName());
+        projectRoot.setStartDate(currentProject.getStartDate() != null ? currentProject.getStartDate() : LocalDate.now());
+        projectRoot.setEndDate(currentProject.getEndDate() != null ? currentProject.getEndDate() : LocalDate.now().plusDays(1));
+        projectRoot.setGroup(true);
+        projectRoot.setWbsCode("1.");
+
+        grid.setItems(
+            java.util.List.of(projectRoot),
+            task -> {
+                if (task.getId() != null && task.getId().equals(-1L)) {
+                    return tasks.stream().filter(t -> t.getParentGroup() == null).toList();
+                }
+                return tasks.stream().filter(t -> task.equals(t.getParentGroup())).toList();
+            }
+        );
+        grid.expand(projectRoot);
+        grid.expand(tasks.stream().filter(Task::isGroup).toList());
 
         calculateDateRange();
         renderTimeline();
@@ -297,6 +330,17 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
 
     private List<Task> getHierarchicalTasks() {
         List<Task> result = new java.util.ArrayList<>();
+        
+        Task projectRoot = new Task();
+        projectRoot.setId(-1L);
+        projectRoot.setName(currentProject.getName());
+        projectRoot.setStartDate(currentProject.getStartDate() != null ? currentProject.getStartDate() : LocalDate.now());
+        projectRoot.setEndDate(currentProject.getEndDate() != null ? currentProject.getEndDate() : LocalDate.now().plusDays(1));
+        projectRoot.setGroup(true);
+        projectRoot.setWbsCode("1.");
+        
+        result.add(projectRoot);
+
         List<Task> roots = tasks.stream().filter(t -> t.getParentGroup() == null).toList();
         for (Task root : roots) {
             result.add(root);
@@ -438,15 +482,13 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
             // Vertically center the bar inside the 44px row
             int barHeight = task.isGroup() ? 16 : 24;
             int barMarginTop = (rowHeight - barHeight) / 2;
-            String bgColor = task.isGroup() ? "#424242" : "#1976d2";
+            String bgColor = task.isGroup() ? "#424242" : (task.isCritical() ? "#d32f2f" : "#1976d2");
             String borderRadius = task.isGroup() ? "0px" : "4px";
 
             bar.getStyle()
                     .set("position", "absolute")
                     .set("left", leftPercent + "%")
-                    .set("width", widthPercent + "%")
                     .set("top", (topOffset + barMarginTop) + "px")
-                    .set("height", barHeight + "px")
                     .set("background-color", bgColor)
                     .set("color", "white")
                     .set("border-radius", borderRadius)
@@ -460,6 +502,21 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
                     .set("z-index", "2")
                     .set("cursor", "pointer");
 
+            if (task.isMilestone()) {
+                bar.setText("");
+                bar.getStyle()
+                        .set("width", "16px")
+                        .set("height", "16px")
+                        .set("transform", "rotate(45deg)")
+                        .set("border-radius", "0px")
+                        .set("top", (topOffset + (rowHeight - 16) / 2) + "px")
+                        .set("margin-left", "-8px"); // center the diamond on the date
+            } else {
+                bar.getStyle()
+                        .set("width", widthPercent + "%")
+                        .set("height", barHeight + "px");
+            }
+
             bar.addClickListener(e -> openTaskDialog(task));
 
             canvas.add(bar);
@@ -468,7 +525,7 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
 
         // Render Project Markers (Start and End)
         renderProjectMarker(canvas, currentProject.getStartDate(), "#4caf50", "Inicio Proyecto");
-        renderProjectMarker(canvas, currentProject.getEndDate(), "#f44336", "Fin Proyecto");
+        renderProjectMarker(canvas, currentProject.getEndDate() != null ? currentProject.getEndDate().plusDays(1) : null, "#f44336", "Fin Proyecto");
 
         // Render Dependency Arrows using Native Vaadin Divs
         for (Task task : orderedTasks) {
@@ -484,7 +541,7 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
                 double succX = succStart * minWidthPerDay;
                 double succY = headerHeight + taskIndexMap.get(task.getId()) * rowHeight + (rowHeight / 2.0);
 
-                String color = "#ff9800";
+                String color = (task.isCritical() && pred.isCritical()) ? "#d32f2f" : "#ff9800";
                 
                 if (succX >= predX + 15) {
                     renderHorizontalLine(canvas, predX, predX + 10, predY, color);
@@ -681,6 +738,9 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
         binder.forField(predecessorBox).bind(Task::getPredecessor, Task::setPredecessor);
         binder.forField(depTypeBox).bind(Task::getDependencyType, Task::setDependencyType);
 
+        com.vaadin.flow.component.checkbox.Checkbox milestoneBox = new com.vaadin.flow.component.checkbox.Checkbox("Hito (Milestone)");
+        binder.forField(milestoneBox).bind(Task::isMilestone, Task::setMilestone);
+
         if (task.getId() == null) {
             task.setProject(currentProject);
             task.setDependencyType(TaskDependencyType.NONE);
@@ -693,16 +753,23 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
         binder.readBean(task);
 
         form.add(nameField, descField, startDateField, durationField, endDateField, assigneeBox, predecessorBox,
-                depTypeBox);
+                depTypeBox, milestoneBox);
         dialog.add(form);
 
         Button saveBtn = new Button("Guardar", e -> {
             try {
                 if (binder.writeBeanIfValid(task)) {
-                    taskService.saveTask(task);
+                    if (task.getId() != null && task.getId().equals(-1L)) {
+                        currentProject.setName(task.getName());
+                        currentProject.setStartDate(task.getStartDate());
+                        currentProject.setEndDate(task.getEndDate());
+                        projectService.createOrUpdate(currentProject);
+                    } else {
+                        taskService.saveTask(task);
+                    }
                     refreshData();
                     dialog.close();
-                    Notification.show("Tarea guardada", 3000, Notification.Position.BOTTOM_CENTER)
+                    Notification.show("Guardado correctamente", 3000, Notification.Position.BOTTOM_CENTER)
                             .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
                 }
             } catch (IllegalStateException ex) {
@@ -717,7 +784,7 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
 
         Button cancelBtn = new Button("Cancelar", e -> dialog.close());
 
-        if (task.getId() != null) {
+        if (task.getId() != null && !task.getId().equals(-1L)) {
             Button deleteBtn = new Button("Eliminar", e -> {
                 ConfirmDialog confirm = new ConfirmDialog();
                 confirm.setHeader("Eliminar Tarea");

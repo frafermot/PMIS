@@ -53,6 +53,15 @@ public class Task {
     @Column(name = "is_group")
     private boolean isGroup = false;
 
+    @Column(name = "is_milestone")
+    private boolean isMilestone = false;
+
+    @Column(name = "is_critical")
+    private boolean isCritical = false;
+
+    @Column(name = "wbs_code")
+    private String wbsCode;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_group_id")
     private Task parentGroup;
@@ -138,6 +147,30 @@ public class Task {
 
     public void setGroup(boolean isGroup) {
         this.isGroup = isGroup;
+    }
+
+    public boolean isMilestone() {
+        return isMilestone;
+    }
+
+    public void setMilestone(boolean milestone) {
+        isMilestone = milestone;
+    }
+
+    public boolean isCritical() {
+        return isCritical;
+    }
+
+    public void setCritical(boolean critical) {
+        isCritical = critical;
+    }
+
+    public String getWbsCode() {
+        return wbsCode;
+    }
+
+    public void setWbsCode(String wbsCode) {
+        this.wbsCode = wbsCode;
     }
 
     public Task getParentGroup() {
