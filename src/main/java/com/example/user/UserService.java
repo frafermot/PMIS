@@ -102,7 +102,7 @@ public class UserService {
     }
 
     public List<User> getAll() {
-        List<User> users = userRepository.findAllWithProject();
+        List<User> users = userRepository.findAllWithProjectAndResource();
         return users;
     }
 
@@ -116,7 +116,7 @@ public class UserService {
 
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public List<User> findAvailableForProject(Long projectId) {
-        return userRepository.findAllWithProject().stream()
+        return userRepository.findAllWithProjectAndResource().stream()
                 .filter(user -> user.getProject() == null ||
                         (projectId != null && !user.getProject().getId().equals(projectId)))
                 .toList();
@@ -127,7 +127,7 @@ public class UserService {
         if (projectId == null) {
             return List.of();
         }
-        return userRepository.findAllWithProject().stream()
+        return userRepository.findAllWithProjectAndResource().stream()
                 .filter(user -> user.getProject() != null && user.getProject().getId().equals(projectId))
                 .toList();
     }
