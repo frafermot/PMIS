@@ -12,6 +12,9 @@ public interface UserRepository extends JpaRepository<User, Long> {
         @Query("SELECT DISTINCT u FROM User u LEFT JOIN FETCH u.project")
         List<User> findAllWithProject();
 
+        @Query("SELECT DISTINCT u FROM User u LEFT JOIN FETCH u.project LEFT JOIN FETCH u.resource")
+        List<User> findAllWithProjectAndResource();
+
         User findByUvus(String uvus);
 
         @Query("SELECT DISTINCT u FROM User u " +

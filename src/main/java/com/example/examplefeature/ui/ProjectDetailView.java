@@ -9,6 +9,7 @@ import com.example.document.DocumentStatus;
 import com.example.document.DocumentType;
 import com.example.project.Project;
 import com.example.project.ProjectService;
+import com.example.resource.Resource;
 import com.example.security.SecurityService;
 import com.example.user.Role;
 import com.example.user.User;
@@ -117,6 +118,7 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         buildBreadcrumb();
         buildProjectInfoSection();
         buildUsersSection();
+        buildResourcesSection();
         buildDocumentsSection();
     }
 
@@ -255,6 +257,42 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
 
         Details details = new Details("Usuarios Asignados", content);
         details.setOpened(false); // starts closed
+        details.setWidthFull();
+        add(details);
+    }
+
+    // ─── Resources section ───────────────────────────────────────────────────
+
+    private record ProjectResourceRow(User user, Resource resource) {}
+
+    private void buildResourcesSection() {
+        VerticalLayout content = new VerticalLayout();
+        content.setPadding(false);
+
+        Grid<ProjectResourceRow> resourceGrid = new Grid<>();
+        resourceGrid.setWidthFull();
+        resourceGrid.setHeight("250px");
+        
+        resourceGrid.addColumn(r -> r.resource().getId())
+                .setHeader("ID Recurso").setWidth("100px").setFlexGrow(0);
+        resourceGrid.addColumn(r -> r.resource().getResourceType())
+                .setHeader("Tipo").setFlexGrow(1);
+        resourceGrid.addColumn(r -> r.resource().getProfessionalProfile())
+                .setHeader("Perfil Profesional").setFlexGrow(1);
+        resourceGrid.addColumn(r -> r.user().getName())
+                .setHeader("Usuario Asignado").setFlexGrow(1);
+
+        List<User> projectUsers = userService.findByProject(currentProject.getId());
+        List<ProjectResourceRow> rows = projectUsers.stream()
+                .filter(u -> u.getResource() != null)
+                .map(u -> new ProjectResourceRow(u, u.getResource()))
+                .toList();
+
+        resourceGrid.setItems(rows);
+        content.add(resourceGrid);
+
+        Details details = new Details("Recursos del Proyecto", content);
+        details.setOpened(false);
         details.setWidthFull();
         add(details);
     }
