@@ -53,6 +53,17 @@ public class Project {
     @Column(name = "work_end_hour")
     private java.time.LocalTime workEndHour = java.time.LocalTime.of(18, 0);
 
+    @Column(name = "duration_unit")
+    private String durationUnit = "DAYS"; // "DAYS" or "HOURS"
+
+    public String getDurationUnit() {
+        return durationUnit;
+    }
+
+    public void setDurationUnit(String durationUnit) {
+        this.durationUnit = durationUnit;
+    }
+
     public String getWorkingDays() {
         return workingDays;
     }

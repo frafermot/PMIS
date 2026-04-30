@@ -70,20 +70,9 @@ public class MainLayout extends AppLayout implements RouterLayout { // Implement
 
         addToDrawer(drawerContent);
 
-        // 4. FOOTER y CONTENIDO
-        // Creamos el footer
-        var appFooter = createFooter();
-
-        // Creamos un wrapper para el contenido y el footer
-        // Esto nos permite tener un "sticky footer"
-        Div mainContentWrapper = new Div(contentArea, appFooter);
-
-        // Estilos para que el footer se quede abajo
-        mainContentWrapper.addClassNames(Display.FLEX, FlexDirection.COLUMN, "h-full");
-        contentArea.addClassNames(Flex.GROW); // El contenido crece para empujar el footer
-
-        // Asignamos este wrapper como el contenido principal del AppLayout
-        setContent(mainContentWrapper);
+        // Asignamos contentArea como el contenido principal del AppLayout
+        setContent(contentArea);
+        contentArea.addClassNames("h-full");
     }
 
     private Div createDrawerFooter() {
@@ -203,21 +192,6 @@ public class MainLayout extends AppLayout implements RouterLayout { // Implement
         }
     }
 
-    // Implementación del Footer
-    private Div createFooter() {
-        var footer = new Div(new Span("© 2024 Nombre de tu Empresa | Todos los derechos reservados"));
-
-        // Estilos para el footer
-        footer.addClassNames(
-                Display.FLEX,
-                AlignItems.CENTER,
-                JustifyContent.CENTER,
-                Padding.MEDIUM,
-                TextColor.SECONDARY,
-                "text-xs" // Texto pequeño
-        );
-        return footer;
-    }
 
     // Este método es requerido por RouterLayout.
     // Se asegura de que las vistas se carguen en nuestro 'contentArea'

@@ -31,15 +31,26 @@ import com.vaadin.flow.component.textfield.TextFieldVariant;
 import com.vaadin.flow.component.treegrid.TreeGrid;
 import com.vaadin.flow.data.binder.Binder;
 import com.vaadin.flow.dom.Element;
+import com.vaadin.flow.component.checkbox.CheckboxGroup;
+import com.vaadin.flow.component.checkbox.CheckboxGroupVariant;
+import com.vaadin.flow.component.timepicker.TimePicker;
 import com.vaadin.flow.router.BeforeEnterEvent;
 import com.vaadin.flow.router.BeforeEnterObserver;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import jakarta.annotation.security.RolesAllowed;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.format.TextStyle;
 import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Route(value = "proyecto/:projectId/gantt", layout = MainLayout.class)
 @PageTitle("Cronograma")
@@ -71,6 +82,8 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
         setSizeFull();
         setPadding(true);
         setSpacing(true);
+
+        grid.addItemDoubleClickListener(e -> openTaskDialog(e.getItem()));
     }
 
     @Override
@@ -134,9 +147,36 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
         Button addTaskBtn = new Button("Añadir Tarea", e -> openTaskDialog(new Task()));
         addTaskBtn.addThemeVariants(ButtonVariant.LUMO_SUCCESS);
 
-        HorizontalLayout actions = new HorizontalLayout(wbsBtn, criticalPathBtn, groupBtn, addTaskBtn);
-        header.add(titleGroup, actions);
-        add(header);
+        Button unitToggleBtn = new Button("Unidad: " + (currentProject.getDurationUnit().equals("DAYS") ? "Días" : "Horas"), e -> {
+            String newUnit = currentProject.getDurationUnit().equals("DAYS") ? "HOURS" : "DAYS";
+            currentProject.setDurationUnit(newUnit);
+            projectService.createOrUpdate(currentProject);
+            e.getSource().setText("Unidad: " + (newUnit.equals("DAYS") ? "Días" : "Horas"));
+            configureGrid();
+            refreshData();
+        });
+        unitToggleBtn.addThemeVariants(ButtonVariant.LUMO_CONTRAST);
+
+        Button configCalendarBtn = new Button("Configurar Calendario", e -> openCalendarDialog());
+        configCalendarBtn.addThemeVariants(ButtonVariant.LUMO_CONTRAST);
+
+        // Header and Actions in two rows for more space
+        VerticalLayout topLayout = new VerticalLayout();
+        topLayout.setPadding(false);
+        topLayout.setSpacing(true);
+        topLayout.setWidthFull();
+
+        HorizontalLayout firstRow = new HorizontalLayout(titleGroup);
+        firstRow.setWidthFull();
+        firstRow.setJustifyContentMode(JustifyContentMode.BETWEEN);
+
+        HorizontalLayout secondRow = new HorizontalLayout(wbsBtn, criticalPathBtn, groupBtn, addTaskBtn, unitToggleBtn, configCalendarBtn);
+        secondRow.setWidthFull();
+        secondRow.setJustifyContentMode(JustifyContentMode.START);
+        secondRow.setSpacing(true);
+
+        topLayout.add(firstRow, secondRow);
+        add(topLayout);
 
         // Split Layout
         SplitLayout splitLayout = new SplitLayout();
@@ -243,11 +283,19 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
 
         grid.addColumn(Task::getStartDate).setHeader("Inicio").setFlexGrow(1).setResizable(true);
         grid.addColumn(Task::getEndDate).setHeader("Fin").setFlexGrow(1).setResizable(true);
-        grid.addColumn(task -> task.isMilestone() ? "0d" : (ChronoUnit.DAYS.between(task.getStartDate(), task.getEndDate()) + 1 + "d"))
-                .setHeader("Duración").setFlexGrow(1).setResizable(true);
+        
+        grid.addColumn(task -> {
+            if (task.isMilestone()) return "0";
+            long days = ChronoUnit.DAYS.between(task.getStartDate(), task.getEndDate()) + 1;
+            if (currentProject.getDurationUnit().equals("HOURS")) {
+                long hoursPerDay = ChronoUnit.HOURS.between(currentProject.getWorkStartHour(), currentProject.getWorkEndHour());
+                return (days * hoursPerDay) + "h";
+            }
+            return days + "d";
+        }).setHeader("Duración").setFlexGrow(1).setResizable(true);
 
-        // Double click row to edit, so we don't interfere with selection
-        grid.addItemDoubleClickListener(e -> openTaskDialog(e.getItem()));
+        grid.addColumn(task -> String.format("%.2f €", calculateTaskCost(task)))
+                .setHeader("Coste").setFlexGrow(1).setResizable(true);
     }
 
     private void openGroupDialog() {
@@ -644,36 +692,56 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
         TextField nameField = new TextField("Nombre");
         TextArea descField = new TextArea("Descripción");
         DatePicker startDateField = new DatePicker("Fecha Inicio");
-        IntegerField durationField = new IntegerField("Duración (Días)");
-        durationField.setMin(1);
+        IntegerField durationField = new IntegerField("Duración (" + (currentProject.getDurationUnit().equals("DAYS") ? "Días" : "Horas") + ")");
+        durationField.setMin(currentProject.getDurationUnit().equals("DAYS") ? 1 : (int)ChronoUnit.HOURS.between(currentProject.getWorkStartHour(), currentProject.getWorkEndHour()));
         DatePicker endDateField = new DatePicker("Fecha Fin");
 
         // Reactivity for Duration
         durationField.addValueChangeListener(e -> {
             if (e.isFromClient() && e.getValue() != null && startDateField.getValue() != null) {
                 int val = e.getValue();
-                if (val < 0) {
-                    durationField.setValue(0);
-                    val = 0;
+                long hoursPerDay = ChronoUnit.HOURS.between(currentProject.getWorkStartHour(), currentProject.getWorkEndHour());
+                
+                if (currentProject.getDurationUnit().equals("HOURS")) {
+                    int days = (int) Math.ceil((double) val / hoursPerDay);
+                    endDateField.setValue(startDateField.getValue().plusDays(days > 0 ? days - 1 : 0));
+                } else {
+                    if (val < 0) {
+                        durationField.setValue(0);
+                        val = 0;
+                    }
+                    endDateField.setValue(startDateField.getValue().plusDays(val > 0 ? val - 1 : 0));
                 }
-                endDateField.setValue(startDateField.getValue().plusDays(val > 0 ? val - 1 : 0));
             }
         });
 
         startDateField.addValueChangeListener(e -> {
             if (e.isFromClient() && e.getValue() != null && durationField.getValue() != null) {
-                endDateField.setValue(e.getValue().plusDays(durationField.getValue() - 1));
+                int val = durationField.getValue();
+                long hoursPerDay = ChronoUnit.HOURS.between(currentProject.getWorkStartHour(), currentProject.getWorkEndHour());
+                
+                if (currentProject.getDurationUnit().equals("HOURS")) {
+                    int days = (int) Math.ceil((double) val / hoursPerDay);
+                    endDateField.setValue(e.getValue().plusDays(days > 0 ? days - 1 : 0));
+                } else {
+                    endDateField.setValue(e.getValue().plusDays(val > 0 ? val - 1 : 0));
+                }
             }
         });
 
         endDateField.addValueChangeListener(e -> {
             if (e.isFromClient() && e.getValue() != null && startDateField.getValue() != null) {
-                int dur = (int) ChronoUnit.DAYS.between(startDateField.getValue(), e.getValue()) + 1;
-                if (dur < 1) {
+                int days = (int) ChronoUnit.DAYS.between(startDateField.getValue(), e.getValue()) + 1;
+                if (days < 1) {
                     Notification.show("La fecha de fin no puede ser anterior a la fecha de inicio");
                     endDateField.setValue(e.getOldValue() != null ? e.getOldValue() : startDateField.getValue());
                 } else {
-                    durationField.setValue(dur);
+                    if (currentProject.getDurationUnit().equals("HOURS")) {
+                        long hoursPerDay = ChronoUnit.HOURS.between(currentProject.getWorkStartHour(), currentProject.getWorkEndHour());
+                        durationField.setValue((int)(days * hoursPerDay));
+                    } else {
+                        durationField.setValue(days);
+                    }
                 }
             }
         });
@@ -777,10 +845,17 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
             task.setProject(currentProject);
             task.setDependencyType(TaskDependencyType.NONE);
             task.setStartDate(LocalDate.now());
-            task.setEndDate(LocalDate.now().plusDays(1));
-            durationField.setValue(2);
+            task.setEndDate(LocalDate.now());
+            long hoursPerDay = ChronoUnit.HOURS.between(currentProject.getWorkStartHour(), currentProject.getWorkEndHour());
+            durationField.setValue(currentProject.getDurationUnit().equals("HOURS") ? (int)hoursPerDay : 1);
         } else {
-            durationField.setValue((int) ChronoUnit.DAYS.between(task.getStartDate(), task.getEndDate()) + 1);
+            long days = ChronoUnit.DAYS.between(task.getStartDate(), task.getEndDate()) + 1;
+            if (currentProject.getDurationUnit().equals("HOURS")) {
+                long hoursPerDay = ChronoUnit.HOURS.between(currentProject.getWorkStartHour(), currentProject.getWorkEndHour());
+                durationField.setValue((int)(days * hoursPerDay));
+            } else {
+                durationField.setValue((int)days);
+            }
         }
         binder.readBean(task);
 
@@ -799,10 +874,13 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
                     } else {
                         taskService.saveTask(task);
                     }
-                    refreshData();
                     dialog.close();
+                    refreshData();
                     Notification.show("Guardado correctamente", 3000, Notification.Position.BOTTOM_CENTER)
                             .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
+                } else {
+                    Notification.show("Por favor, revise los campos marcados como requeridos", 3000, Notification.Position.MIDDLE)
+                            .addThemeVariants(NotificationVariant.LUMO_WARNING);
                 }
             } catch (IllegalStateException ex) {
                 Notification error = new Notification(ex.getMessage(), 5000, Notification.Position.MIDDLE);
@@ -888,6 +966,39 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
         canvas.add(arrow);
     }
 
+    private double calculateTaskCost(Task task) {
+        if (task.isGroup()) {
+            // Recursive sum for groups
+            List<Task> children = tasks.stream()
+                    .filter(t -> task.equals(t.getParentGroup()))
+                    .toList();
+            double sum = 0;
+            for (Task child : children) {
+                sum += calculateTaskCost(child);
+            }
+            // If it's the project root (id -1), sum all top-level tasks
+            if (task.getId() != null && task.getId().equals(-1L)) {
+                sum = tasks.stream()
+                        .filter(t -> t.getParentGroup() == null)
+                        .mapToDouble(this::calculateTaskCost)
+                        .sum();
+            }
+            return sum;
+        }
+
+        if (task.isMilestone() || task.getAssignee() == null || task.getAssignee().getResource() == null) {
+            return 0.0;
+        }
+
+        Double costPerHour = task.getAssignee().getResource().getCostPerHour();
+        if (costPerHour == null) return 0.0;
+
+        long days = ChronoUnit.DAYS.between(task.getStartDate(), task.getEndDate()) + 1;
+        long hoursPerDay = ChronoUnit.HOURS.between(currentProject.getWorkStartHour(), currentProject.getWorkEndHour());
+        
+        return days * hoursPerDay * costPerHour;
+    }
+
     private boolean isWorkingDay(LocalDate date) {
         String workingDaysStr = currentProject.getWorkingDays();
         if (workingDaysStr == null || workingDaysStr.isEmpty()) return true;
@@ -895,5 +1006,66 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
                 .map(java.time.DayOfWeek::valueOf)
                 .collect(java.util.stream.Collectors.toSet());
         return workingDays.contains(date.getDayOfWeek());
+    }
+
+    private void openCalendarDialog() {
+        Dialog dialog = new Dialog();
+        dialog.setHeaderTitle("Configuración de Calendario Laboral");
+        dialog.setWidth("600px");
+
+        VerticalLayout content = new VerticalLayout();
+        content.setPadding(true);
+        content.setSpacing(true);
+
+        CheckboxGroup<DayOfWeek> workingDaysGroup = new CheckboxGroup<>();
+        workingDaysGroup.setLabel("Días Laborables");
+        workingDaysGroup.setItems(DayOfWeek.values());
+        workingDaysGroup.setItemLabelGenerator(day -> day.getDisplayName(TextStyle.FULL, new Locale("es", "ES")));
+        workingDaysGroup.addThemeVariants(CheckboxGroupVariant.LUMO_VERTICAL);
+        
+        String[] savedDays = currentProject.getWorkingDays().split(",");
+        Set<DayOfWeek> initialDays = Stream.of(savedDays)
+                .filter(s -> !s.isEmpty())
+                .map(DayOfWeek::valueOf)
+                .collect(Collectors.toSet());
+        workingDaysGroup.setValue(initialDays);
+
+        TimePicker startTime = new TimePicker("Hora Inicio Jornada");
+        startTime.setValue(currentProject.getWorkStartHour());
+        
+        TimePicker endTime = new TimePicker("Hora Fin Jornada");
+        endTime.setValue(currentProject.getWorkEndHour());
+
+        HorizontalLayout timesLayout = new HorizontalLayout(startTime, endTime);
+        timesLayout.setWidthFull();
+
+        content.add(workingDaysGroup, timesLayout);
+        dialog.add(content);
+
+        Button saveBtn = new Button("Guardar", e -> {
+            Set<DayOfWeek> selectedDays = workingDaysGroup.getValue();
+            if (selectedDays.isEmpty()) {
+                Notification.show("Selecciona al menos un día laborable");
+                return;
+            }
+            String daysStr = selectedDays.stream()
+                    .map(DayOfWeek::name)
+                    .collect(Collectors.joining(","));
+            currentProject.setWorkingDays(daysStr);
+            currentProject.setWorkStartHour(startTime.getValue());
+            currentProject.setWorkEndHour(endTime.getValue());
+            
+            projectService.createOrUpdate(currentProject);
+            Notification.show("Calendario actualizado. Recalculando cronograma...");
+            
+            dialog.close();
+            refreshData();
+        });
+        saveBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+
+        Button cancelBtn = new Button("Cancelar", e -> dialog.close());
+        dialog.getFooter().add(cancelBtn, saveBtn);
+
+        dialog.open();
     }
 }

@@ -10,7 +10,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 public interface TaskRepository extends JpaRepository<Task, Long> {
-    @Query("SELECT t FROM Task t LEFT JOIN FETCH t.assignee LEFT JOIN FETCH t.predecessor WHERE t.project = :project ORDER BY t.startDate ASC")
+    @Query("SELECT t FROM Task t LEFT JOIN FETCH t.assignee a LEFT JOIN FETCH a.resource LEFT JOIN FETCH t.predecessor LEFT JOIN FETCH t.parentGroup WHERE t.project = :project ORDER BY t.startDate ASC")
     List<Task> findByProjectOrderByStartDateAsc(@Param("project") Project project);
 
     @Query("SELECT t FROM Task t WHERE t.assignee = :assignee AND t.id != :excludeTaskId AND " +

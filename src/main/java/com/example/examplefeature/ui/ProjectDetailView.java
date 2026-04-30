@@ -24,6 +24,7 @@ import com.vaadin.flow.component.datepicker.DatePicker;
 import com.vaadin.flow.component.details.Details;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.grid.Grid;
+import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.H3;
 import com.vaadin.flow.component.html.Span;
@@ -71,8 +72,6 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
     private TextField nameField;
     private Select<User> directorSelect;
     private Select<User> sponsorSelect;
-    private DatePicker startDateField;
-    private DatePicker endDateField;
 
     // Document view: the container that holds whichever mode is active
     private VerticalLayout docViewContainer;
@@ -128,13 +127,11 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
     }
 
     // ─── Main build ───────────────────────────────────────────────────────────
-
     private void buildView() {
         buildBreadcrumb();
         buildProjectInfoSection();
         buildScheduleSection();
         buildUsersSection();
-        buildCalendarSection();
         buildDocumentsSection();
     }
 
@@ -211,28 +208,13 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         sponsorSelect.setValue(currentProject.getSponsor());
         sponsorSelect.setWidthFull();
 
-        startDateField = new DatePicker("Fecha Inicio");
-        startDateField.setValue(currentProject.getStartDate());
-        startDateField.setWidthFull();
-
-        endDateField = new DatePicker("Fecha Fin");
-        endDateField.setValue(currentProject.getEndDate());
-        endDateField.setWidthFull();
-
         Button saveButton = new Button("Guardar Cambios", e -> saveProject());
         saveButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
 
-        HorizontalLayout formLayout1 = new HorizontalLayout(nameField, programField, directorSelect);
-        formLayout1.setWidthFull();
-        formLayout1.setAlignItems(Alignment.END);
-        
-        HorizontalLayout formLayout2 = new HorizontalLayout(sponsorSelect, startDateField, endDateField, saveButton);
-        formLayout2.setWidthFull();
-        formLayout2.setAlignItems(Alignment.END);
-        
-        VerticalLayout mainFormLayout = new VerticalLayout(formLayout1, formLayout2);
-        mainFormLayout.setPadding(false);
-        add(mainFormLayout);
+        HorizontalLayout formLayout = new HorizontalLayout(nameField, programField, directorSelect, sponsorSelect, saveButton);
+        formLayout.setWidthFull();
+        formLayout.setAlignItems(Alignment.END);
+        add(formLayout);
 
         // Compute permissions
         isProgramDirector = currentProject.getProgram() != null
@@ -246,8 +228,6 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
 
         nameField.setReadOnly(!canEditProjectInfo);
         sponsorSelect.setReadOnly(!canEditProjectInfo);
-        startDateField.setReadOnly(!canEditProjectInfo);
-        endDateField.setReadOnly(!canEditProjectInfo);
 
         if (canAssignDirector) {
             directorSelect.setReadOnly(false);
@@ -273,12 +253,18 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         boolean hasTasks = !taskService.getTasksByProject(currentProject).isEmpty();
         
         if (hasTasks) {
-            Button openGanttBtn = new Button("Abrir Cronograma Completo", e -> {
+            Button openGanttBtn = new Button("Acceder al Cronograma", e -> {
                 UI.getCurrent().navigate("proyecto/" + currentProject.getId() + "/gantt");
             });
             openGanttBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_LARGE);
             layout.add(openGanttBtn);
             layout.setAlignItems(Alignment.CENTER);
+            
+            // Add calendar summary/quick access
+            Span calendarSummary = new Span("Calendario: " + currentProject.getWorkingDays() + " (" + 
+                    currentProject.getWorkStartHour() + " - " + currentProject.getWorkEndHour() + ")");
+            calendarSummary.getStyle().set("font-size", "var(--lumo-font-size-s)").set("color", "var(--lumo-secondary-text-color)");
+            layout.add(calendarSummary);
         } else {
             HorizontalLayout formLayout = new HorizontalLayout();
             formLayout.setWidthFull();
@@ -347,59 +333,6 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
     }
 
 
-    // ─── Calendar section ───────────────────────────────────────────────────
-
-    private void buildCalendarSection() {
-        VerticalLayout content = new VerticalLayout();
-        content.setPadding(true);
-        content.setSpacing(true);
-
-        H3 title = new H3("Configuración de Calendario Laboral");
-        
-        CheckboxGroup<DayOfWeek> workingDaysGroup = new CheckboxGroup<>();
-        workingDaysGroup.setLabel("Días Laborables");
-        workingDaysGroup.setItems(DayOfWeek.values());
-        workingDaysGroup.setItemLabelGenerator(day -> day.getDisplayName(TextStyle.FULL, new Locale("es", "ES")));
-        workingDaysGroup.addThemeVariants(CheckboxGroupVariant.LUMO_VERTICAL);
-        
-        // Initial value from project
-        String[] savedDays = currentProject.getWorkingDays().split(",");
-        Set<DayOfWeek> initialDays = Stream.of(savedDays)
-                .filter(s -> !s.isEmpty())
-                .map(DayOfWeek::valueOf)
-                .collect(Collectors.toSet());
-        workingDaysGroup.setValue(initialDays);
-
-        TimePicker startTime = new TimePicker("Hora Inicio Jornada");
-        startTime.setValue(currentProject.getWorkStartHour());
-        
-        TimePicker endTime = new TimePicker("Hora Fin Jornada");
-        endTime.setValue(currentProject.getWorkEndHour());
-
-        Button saveCalendarBtn = new Button("Guardar Calendario", e -> {
-            Set<DayOfWeek> selectedDays = workingDaysGroup.getValue();
-            String daysStr = selectedDays.stream()
-                    .map(DayOfWeek::name)
-                    .collect(Collectors.joining(","));
-            currentProject.setWorkingDays(daysStr);
-            currentProject.setWorkStartHour(startTime.getValue());
-            currentProject.setWorkEndHour(endTime.getValue());
-            
-            projectService.createOrUpdate(currentProject);
-            Notification.show("Calendario del proyecto actualizado");
-        });
-        saveCalendarBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-
-        HorizontalLayout timesLayout = new HorizontalLayout(startTime, endTime);
-        timesLayout.setAlignItems(Alignment.END);
-
-        content.add(title, workingDaysGroup, timesLayout, saveCalendarBtn);
-
-        Details details = new Details("Calendario del Proyecto", content);
-        details.setOpened(false);
-        details.setWidthFull();
-        add(details);
-    }
 
     private void buildDocumentsSection() {
         // Seed documents (idempotent)
@@ -646,35 +579,32 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
             Notification.show("Por favor rellene Nombre y Sponsor");
             return;
         }
-        if (startDateField.getValue() != null && endDateField.getValue() != null) {
-            if (endDateField.getValue().isBefore(startDateField.getValue())) {
-                Notification.show("La fecha de fin no puede ser anterior a la de inicio");
-                return;
-            }
-        }
         currentProject.setName(nameField.getValue());
         currentProject.setDirector(directorSelect.getValue());
         currentProject.setSponsor(sponsorSelect.getValue());
-        currentProject.setStartDate(startDateField.getValue());
-        currentProject.setEndDate(endDateField.getValue());
+        
         projectService.createOrUpdate(currentProject);
-        Notification.show("Proyecto actualizado exitosamente");
+        Notification.show("Cambios guardados");
+        removeAll();
+        buildView();
     }
 
     // ─── User grid ────────────────────────────────────────────────────────────
 
     private void configureUserGrid(boolean canManageUsers) {
-        userGrid.setSizeFull();
-        userGrid.addColumn(User::getId).setHeader("ID").setWidth("60px").setFlexGrow(0);
-        userGrid.addColumn(User::getName).setHeader("Nombre").setFlexGrow(2);
-        userGrid.addColumn(User::getUvus).setHeader("UVUS").setFlexGrow(1);
+        userGrid.setWidthFull();
+        userGrid.setColumnReorderingAllowed(true);
+        
+        userGrid.addColumn(User::getId).setHeader("ID").setWidth("80px").setFlexGrow(0).setResizable(true);
+        userGrid.addColumn(User::getName).setHeader("Nombre").setFlexGrow(2).setResizable(true);
+        userGrid.addColumn(User::getUvus).setHeader("UVUS").setFlexGrow(1).setResizable(true);
         
         userGrid.addColumn(u -> {
             Resource r = u.getResource();
             if (r == null) return "-";
             String cost = r.getCostPerHour() != null ? " (" + r.getCostPerHour() + " €/h)" : "";
             return r.getResourceType() + " - " + r.getProfessionalProfile() + cost;
-        }).setHeader("Recurso PMO").setFlexGrow(1);
+        }).setHeader("Recurso PMO").setFlexGrow(2).setResizable(true);
 
         if (canManageUsers) {
             userGrid.addComponentColumn(user -> {
@@ -688,7 +618,7 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
                 
                 actions.add(assignResourceBtn, removeButton);
                 return actions;
-            }).setHeader("Acciones").setWidth("250px").setFlexGrow(0);
+            }).setHeader("Acciones").setWidth("250px").setFlexGrow(0).setResizable(true);
         }
         userGrid.setHeight("250px");
         userGrid.setPageSize(10);
