@@ -9,7 +9,10 @@ import com.example.document.DocumentStatus;
 import com.example.document.DocumentType;
 import com.example.project.Project;
 import com.example.project.ProjectService;
+import com.example.resource.Resource;
+import com.example.resource.ResourceService;
 import com.example.security.SecurityService;
+import com.example.task.TaskService;
 import com.example.user.Role;
 import com.example.user.User;
 import com.example.user.UserService;
@@ -17,9 +20,11 @@ import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.contextmenu.ContextMenu;
+import com.vaadin.flow.component.datepicker.DatePicker;
 import com.vaadin.flow.component.details.Details;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.grid.Grid;
+import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.H3;
 import com.vaadin.flow.component.html.Span;
@@ -28,17 +33,22 @@ import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.component.textfield.TextField;
+import com.vaadin.flow.component.checkbox.CheckboxGroup;
+import com.vaadin.flow.component.checkbox.CheckboxGroupVariant;
+import com.vaadin.flow.component.timepicker.TimePicker;
 import com.vaadin.flow.router.BeforeEvent;
 import com.vaadin.flow.router.HasUrlParameter;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import jakarta.annotation.security.RolesAllowed;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.format.TextStyle;
+import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Route(value = "proyecto", layout = MainLayout.class)
 @PageTitle("Detalle de Proyecto")
@@ -50,8 +60,12 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
     private final SecurityService securityService;
     private final CccService cccService;
     private final DocumentService documentService;
+    private final TaskService taskService;
+    private final ResourceService resourceService;
     private Project currentProject;
-    private final Grid<User> userGrid = new Grid<>(User.class, false);
+    private Grid<User> userGrid;
+    private Details usersDetails;
+    private Details scheduleDetails;
 
     // Permissions computed once in buildView
     private boolean isProgramDirector;
@@ -77,12 +91,15 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
 
     public ProjectDetailView(ProjectService projectService, UserService userService,
             SecurityService securityService, CccService cccService,
-            DocumentService documentService) {
+            DocumentService documentService, TaskService taskService,
+            ResourceService resourceService) {
         this.projectService = projectService;
         this.userService = userService;
         this.securityService = securityService;
         this.cccService = cccService;
         this.documentService = documentService;
+        this.taskService = taskService;
+        this.resourceService = resourceService;
 
         setSizeFull();
         setPadding(true);
@@ -112,10 +129,10 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
     }
 
     // ─── Main build ───────────────────────────────────────────────────────────
-
     private void buildView() {
         buildBreadcrumb();
         buildProjectInfoSection();
+        buildScheduleSection();
         buildUsersSection();
         buildDocumentsSection();
     }
@@ -196,8 +213,7 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         Button saveButton = new Button("Guardar Cambios", e -> saveProject());
         saveButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
 
-        HorizontalLayout formLayout = new HorizontalLayout(nameField, programField, directorSelect, sponsorSelect,
-                saveButton);
+        HorizontalLayout formLayout = new HorizontalLayout(nameField, programField, directorSelect, sponsorSelect, saveButton);
         formLayout.setWidthFull();
         formLayout.setAlignItems(Alignment.END);
         add(formLayout);
@@ -232,6 +248,63 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         }
     }
 
+    private void buildScheduleSection() {
+        VerticalLayout layout = new VerticalLayout();
+        layout.setPadding(false);
+        
+        boolean hasTasks = !taskService.getTasksByProject(currentProject).isEmpty();
+        
+        if (hasTasks) {
+            Button openGanttBtn = new Button("Acceder al Cronograma", e -> {
+                UI.getCurrent().navigate("proyecto/" + currentProject.getId() + "/gantt");
+            });
+            openGanttBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_LARGE);
+            layout.add(openGanttBtn);
+            layout.setAlignItems(Alignment.CENTER);
+            
+            // Add calendar summary/quick access
+            Span calendarSummary = new Span("Calendario: " + currentProject.getWorkingDays() + " (" + 
+                    currentProject.getWorkStartHour() + " - " + currentProject.getWorkEndHour() + ")");
+            calendarSummary.getStyle().set("font-size", "var(--lumo-font-size-s)").set("color", "var(--lumo-secondary-text-color)");
+            layout.add(calendarSummary);
+        } else {
+            HorizontalLayout formLayout = new HorizontalLayout();
+            formLayout.setWidthFull();
+            formLayout.setAlignItems(Alignment.END);
+            
+            DatePicker startField = new DatePicker("Fecha de Inicio");
+            startField.setValue(currentProject.getStartDate() != null ? currentProject.getStartDate() : LocalDate.now());
+            
+            DatePicker endField = new DatePicker("Fecha de Fin");
+            endField.setValue(currentProject.getEndDate() != null ? currentProject.getEndDate() : LocalDate.now().plusDays(30));
+            
+            Button initBtn = new Button("Crear Cronograma", e -> {
+                if (startField.isEmpty() || endField.isEmpty()) {
+                    Notification.show("Rellena las fechas de inicio y fin");
+                    return;
+                }
+                if (endField.getValue().isBefore(startField.getValue())) {
+                    Notification.show("La fecha de fin no puede ser anterior a la de inicio");
+                    return;
+                }
+                currentProject.setStartDate(startField.getValue());
+                currentProject.setEndDate(endField.getValue());
+                projectService.createOrUpdate(currentProject);
+
+                UI.getCurrent().navigate("proyecto/" + currentProject.getId() + "/gantt");
+            });
+            initBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+            
+            formLayout.add(startField, endField, initBtn);
+            layout.add(new H3("Configurar Cronograma Inicial"), formLayout);
+        }
+        
+        scheduleDetails = new Details("Cronograma", layout);
+        scheduleDetails.setOpened(true);
+        scheduleDetails.setWidthFull();
+        add(scheduleDetails);
+    }
+
     // ─── Users section (collapsible, closed by default) ───────────────────────
 
     private void buildUsersSection() {
@@ -241,6 +314,8 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         boolean isProjectDirector = currentProject.getDirector() != null && cu != null
                 && currentProject.getDirector().getId().equals(cu.getId());
         boolean canManageUsers = isSystemAdmin || isSponsor || isProjectDirector;
+        
+        userGrid = new Grid<>(User.class, false);
 
         VerticalLayout content = new VerticalLayout();
         content.setPadding(false);
@@ -253,13 +328,13 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         updateUserList();
         content.add(userGrid);
 
-        Details details = new Details("Usuarios Asignados", content);
-        details.setOpened(false); // starts closed
-        details.setWidthFull();
-        add(details);
+        usersDetails = new Details("Usuarios Asignados", content);
+        usersDetails.setOpened(false); // starts closed
+        usersDetails.setWidthFull();
+        add(usersDetails);
     }
 
-    // ─── Documents section ───────────────────────────────────────────────────
+
 
     private void buildDocumentsSection() {
         // Seed documents (idempotent)
@@ -509,23 +584,43 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         currentProject.setName(nameField.getValue());
         currentProject.setDirector(directorSelect.getValue());
         currentProject.setSponsor(sponsorSelect.getValue());
+        
         projectService.createOrUpdate(currentProject);
-        Notification.show("Proyecto actualizado exitosamente");
+        Notification.show("Cambios guardados");
+        removeAll();
+        buildView();
     }
 
     // ─── User grid ────────────────────────────────────────────────────────────
 
     private void configureUserGrid(boolean canManageUsers) {
-        userGrid.setSizeFull();
-        userGrid.addColumn(User::getId).setHeader("ID").setWidth("60px").setFlexGrow(0);
-        userGrid.addColumn(User::getName).setHeader("Nombre").setFlexGrow(2);
-        userGrid.addColumn(User::getUvus).setHeader("UVUS").setFlexGrow(1);
+        userGrid.setWidthFull();
+        userGrid.setColumnReorderingAllowed(true);
+        
+        userGrid.addColumn(User::getId).setHeader("ID").setWidth("80px").setFlexGrow(0).setResizable(true);
+        userGrid.addColumn(User::getName).setHeader("Nombre").setFlexGrow(2).setResizable(true);
+        userGrid.addColumn(User::getUvus).setHeader("UVUS").setFlexGrow(1).setResizable(true);
+        
+        userGrid.addColumn(u -> {
+            Resource r = u.getResource();
+            if (r == null) return "-";
+            String cost = r.getCostPerHour() != null ? " (" + r.getCostPerHour() + " €/h)" : "";
+            return r.getResourceType() + " - " + r.getProfessionalProfile() + cost;
+        }).setHeader("Recurso PMO").setFlexGrow(2).setResizable(true);
+
         if (canManageUsers) {
             userGrid.addComponentColumn(user -> {
+                HorizontalLayout actions = new HorizontalLayout();
+                
+                Button assignResourceBtn = new Button("Vincular Recurso", e -> openAssignResourceDialog(user));
+                assignResourceBtn.addThemeVariants(ButtonVariant.LUMO_SMALL);
+                
                 Button removeButton = new Button("Eliminar", e -> unassignUser(user));
                 removeButton.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_ERROR);
-                return removeButton;
-            }).setHeader("").setWidth("100px").setFlexGrow(0);
+                
+                actions.add(assignResourceBtn, removeButton);
+                return actions;
+            }).setHeader("Acciones").setWidth("250px").setFlexGrow(0).setResizable(true);
         }
         userGrid.setHeight("250px");
         userGrid.setPageSize(10);
@@ -600,9 +695,42 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
 
     private void unassignUser(User user) {
         user.setProject(null);
+        user.setResource(null); // Also clear resource if unassigned from project
         userService.createOrUpdate(user);
         updateUserList();
         updateDirectorList();
         Notification.show("Usuario desasignado exitosamente");
+    }
+
+    private void openAssignResourceDialog(User user) {
+        Dialog dialog = new Dialog();
+        dialog.setHeaderTitle("Asignar Recurso PMO a " + user.getName());
+        dialog.setWidth("500px");
+
+        VerticalLayout layout = new VerticalLayout();
+        
+        Select<Resource> resourceSelect = new Select<>();
+        resourceSelect.setLabel("Seleccionar Recurso");
+        resourceSelect.setItems(resourceService.findAll());
+        resourceSelect.setItemLabelGenerator(r -> r.getResourceType() + " - " + r.getProfessionalProfile() + 
+                (r.getCostPerHour() != null ? " (" + r.getCostPerHour() + " €/h)" : ""));
+        resourceSelect.setValue(user.getResource());
+        resourceSelect.setWidthFull();
+        
+        layout.add(resourceSelect);
+        dialog.add(layout);
+
+        Button saveBtn = new Button("Guardar", e -> {
+            user.setResource(resourceSelect.getValue());
+            userService.createOrUpdate(user);
+            updateUserList();
+            dialog.close();
+            Notification.show("Recurso asignado correctamente");
+        });
+        saveBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        
+        dialog.getFooter().add(new Button("Cancelar", e -> dialog.close()));
+        dialog.getFooter().add(saveBtn);
+        dialog.open();
     }
 }
