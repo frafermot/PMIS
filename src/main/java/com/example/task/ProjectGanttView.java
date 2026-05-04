@@ -72,6 +72,7 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
     private TreeGrid<Task> grid = new TreeGrid<>(Task.class);
     private List<Task> tasks;
     private boolean showBaseline = false;
+    private boolean isReadOnlyView = false;
     private ProjectBaseline selectedBaseline;
     private java.util.Map<Long, TaskBaseline> taskBaselineMap = new java.util.HashMap<>();
     private ComboBox<ProjectBaseline> baselineSelector;
@@ -117,11 +118,15 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
                 && currentUser.getProject().getId().equals(projectId);
         boolean isAdmin = securityService.isAdmin() || securityService.isSystemAdmin();
 
-        if (!isDirector && !isMember && !isAdmin) {
+        boolean isSponsor = securityService.isProjectSponsor(projectId);
+
+        if (!isDirector && !isMember && !isAdmin && !isSponsor) {
             Notification.show("No tienes acceso al cronograma de este proyecto");
             UI.getCurrent().navigate("proyecto/" + projectId);
             return;
         }
+
+        this.isReadOnlyView = isSponsor && !isDirector && !isMember && !isAdmin;
 
         // Collapse drawer automatically
         UI.getCurrent().getElement().executeJs("document.querySelector('vaadin-app-layout').drawerOpened = false");
@@ -150,10 +155,12 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
         // Acciones principales
         Button addTaskBtn = new Button("Tarea", VaadinIcon.PLUS.create(), e -> openTaskDialog(new Task()));
         addTaskBtn.addThemeVariants(ButtonVariant.LUMO_SUCCESS, ButtonVariant.LUMO_PRIMARY);
+        addTaskBtn.setVisible(!isReadOnlyView);
 
         // Menú de Planificación
         MenuItem planning = menuBar.addItem(VaadinIcon.CHART_TIMELINE.create());
         planning.add(" Planificación");
+        planning.setVisible(!isReadOnlyView);
         planning.getSubMenu().addItem("Asignar EDT", e -> {
             taskService.assignWBS(currentProject);
             refreshData();
@@ -178,7 +185,7 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
         });
         updateBaselineSelector(baselineSelector);
         
-        baseline.getSubMenu().addItem("Fijar Nueva Línea Base", e -> openNewBaselineDialog(baselineSelector));
+        baseline.getSubMenu().addItem("Fijar Nueva Línea Base", e -> openNewBaselineDialog(baselineSelector)).setVisible(!isReadOnlyView);
         
         // Add the selector to the second row
         baselineRow = new HorizontalLayout(new Span("Ver LB:"), baselineSelector);
@@ -190,6 +197,7 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
         // Menú de Configuración
         MenuItem config = menuBar.addItem(VaadinIcon.COG.create());
         config.add(" Configuración");
+        config.setVisible(!isReadOnlyView);
         config.getSubMenu().addItem("Calendario Laboral", e -> openCalendarDialog());
         config.getSubMenu().addItem("Visibilidad de Columnas", e -> openColumnConfigDialog());
         
@@ -281,6 +289,7 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
                 predField.addThemeVariants(TextFieldVariant.LUMO_SMALL);
                 predField.setPlaceholder("ID");
                 predField.setWidthFull();
+                predField.setReadOnly(isReadOnlyView);
                 if (task.getPredecessor() != null) predField.setValue(task.getPredecessor().getId().toString());
                 predField.addValueChangeListener(e -> {
                     if (e.isFromClient()) {
@@ -842,6 +851,7 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
     }
 
     private void openTaskDialog(Task task) {
+        if (isReadOnlyView) return;
         Dialog dialog = new Dialog();
         dialog.setHeaderTitle(task.getId() == null ? "Nueva Tarea" : "Editar Tarea");
 

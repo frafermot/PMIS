@@ -520,7 +520,12 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
             // Crear — only when POR_CREAR and user is not just a viewer
             // (sponsor can't create)
             var crearItem = menu.addItem("Crear", e -> handleCrear(row.type()));
-            crearItem.setEnabled(isPorCrear && !isSponsor);
+            User cu = securityService.getCurrentUser();
+            boolean isSystemAdmin = securityService.isAdmin();
+            boolean isProjectDirector = currentProject.getDirector() != null && cu != null && currentProject.getDirector().getId().equals(cu.getId());
+            boolean isMember = cu != null && cu.getProject() != null && cu.getProject().getId().equals(currentProject.getId());
+            boolean canCreate = isSystemAdmin || isProjectDirector || isMember;
+            crearItem.setEnabled(isPorCrear && canCreate && !isSponsor);
     
             // Modificar — only when document exists
             var modificarItem = menu.addItem("Modificar", e -> handleModificar(row.document()));
@@ -618,7 +623,16 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
                 Button removeButton = new Button("Eliminar", e -> unassignUser(user));
                 removeButton.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_ERROR);
                 
-                actions.add(assignResourceBtn, removeButton);
+                User cu = securityService.getCurrentUser();
+                boolean isSystemAdmin = securityService.isAdmin();
+                boolean isProjectDirector = currentProject.getDirector() != null && cu != null && currentProject.getDirector().getId().equals(cu.getId());
+                boolean canAssignResources = isSystemAdmin || isProjectDirector;
+                
+                if (canAssignResources) {
+                    actions.add(assignResourceBtn);
+                }
+                actions.add(removeButton);
+                
                 return actions;
             }).setHeader("Acciones").setWidth("250px").setFlexGrow(0).setResizable(true);
         }

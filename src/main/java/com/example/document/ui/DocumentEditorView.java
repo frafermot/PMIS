@@ -172,13 +172,13 @@ public class DocumentEditorView extends VerticalLayout implements BeforeEnterObs
 
         // ── Permission flags ──────────────────────────────────────────────────
         boolean canRate = false;
-        if (currentDocument.getProject() != null && currentDocument.getProject().getProgram() != null) {
-            canRate = securityService.isProgramDirector(currentDocument.getProject().getProgram().getId());
+        if (currentDocument.getProject() != null) {
+            canRate = securityService.isProjectSponsor(currentDocument.getProject().getId());
         }
 
         boolean canEdit = false;
         User currentUser = securityService.getCurrentUser();
-        if (currentUser != null && !canRate) { // program director cannot edit content
+        if (currentUser != null && !canRate) { // sponsor cannot edit content
             User fullUser = userService.findByUvusWithProject(currentUser.getUvus());
             if (fullUser != null && currentDocument.getProject() != null) {
                 canEdit = currentDocument.getProject().equals(fullUser.getProject());
@@ -212,7 +212,7 @@ public class DocumentEditorView extends VerticalLayout implements BeforeEnterObs
         // ── Rating field + save button ─────────────────────────────────────
         ratingField.setValue(currentDocument.getRating());
         if (canRate) {
-            // Program director: field editable, dedicated save button shown
+            // Sponsor: field editable, dedicated save button shown
             ratingField.setReadOnly(false);
             ratingField.setVisible(true);
             saveRatingButton.setVisible(true);
