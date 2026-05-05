@@ -72,6 +72,7 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
     private TreeGrid<Task> grid = new TreeGrid<>(Task.class);
     private List<Task> tasks;
     private boolean showBaseline = false;
+    private boolean isReadOnlyView = false;
     private ProjectBaseline selectedBaseline;
     private java.util.Map<Long, TaskBaseline> taskBaselineMap = new java.util.HashMap<>();
     private ComboBox<ProjectBaseline> baselineSelector;
@@ -117,11 +118,15 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
                 && currentUser.getProject().getId().equals(projectId);
         boolean isAdmin = securityService.isAdmin() || securityService.isSystemAdmin();
 
-        if (!isDirector && !isMember && !isAdmin) {
+        boolean isSponsor = securityService.isProjectSponsor(projectId);
+
+        if (!isDirector && !isMember && !isAdmin && !isSponsor) {
             Notification.show("No tienes acceso al cronograma de este proyecto");
             UI.getCurrent().navigate("proyecto/" + projectId);
             return;
         }
+
+        this.isReadOnlyView = isSponsor && !isDirector && !isMember && !isAdmin;
 
         // Collapse drawer automatically
         UI.getCurrent().getElement().executeJs("document.querySelector('vaadin-app-layout').drawerOpened = false");
@@ -150,10 +155,12 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
         // Acciones principales
         Button addTaskBtn = new Button("Tarea", VaadinIcon.PLUS.create(), e -> openTaskDialog(new Task()));
         addTaskBtn.addThemeVariants(ButtonVariant.LUMO_SUCCESS, ButtonVariant.LUMO_PRIMARY);
+        addTaskBtn.setVisible(!isReadOnlyView);
 
         // Menú de Planificación
         MenuItem planning = menuBar.addItem(VaadinIcon.CHART_TIMELINE.create());
         planning.add(" Planificación");
+        planning.setVisible(!isReadOnlyView);
         planning.getSubMenu().addItem("Asignar EDT", e -> {
             taskService.assignWBS(currentProject);
             refreshData();
@@ -167,7 +174,7 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
         // Menú de Línea Base
         MenuItem baseline = menuBar.addItem(VaadinIcon.FLAG.create());
         baseline.add(" Línea Base");
-        
+
         baselineSelector = new ComboBox<>();
         baselineSelector.setPlaceholder("Seleccionar LB...");
         baselineSelector.setItemLabelGenerator(ProjectBaseline::getName);
@@ -178,7 +185,7 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
         });
         updateBaselineSelector(baselineSelector);
         
-        baseline.getSubMenu().addItem("Fijar Nueva Línea Base", e -> openNewBaselineDialog(baselineSelector));
+        baseline.getSubMenu().addItem("Fijar Nueva Línea Base", e -> openNewBaselineDialog(baselineSelector)).setVisible(!isReadOnlyView);
         
         // Add the selector to the second row
         baselineRow = new HorizontalLayout(new Span("Ver LB:"), baselineSelector);
@@ -190,9 +197,10 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
         // Menú de Configuración
         MenuItem config = menuBar.addItem(VaadinIcon.COG.create());
         config.add(" Configuración");
+        config.setVisible(!isReadOnlyView);
         config.getSubMenu().addItem("Calendario Laboral", e -> openCalendarDialog());
         config.getSubMenu().addItem("Visibilidad de Columnas", e -> openColumnConfigDialog());
-        
+
         String unitLabel = currentProject.getDurationUnit().equals("DAYS") ? "Cambiar a Horas" : "Cambiar a Días";
         config.getSubMenu().addItem(unitLabel, e -> {
             String newUnit = currentProject.getDurationUnit().equals("DAYS") ? "HOURS" : "DAYS";
@@ -254,13 +262,14 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
         grid.removeAllColumns();
         grid.setSelectionMode(SelectionMode.MULTI);
         grid.setColumnReorderingAllowed(true);
-        grid.addThemeVariants(com.vaadin.flow.component.grid.GridVariant.LUMO_COLUMN_BORDERS, com.vaadin.flow.component.grid.GridVariant.LUMO_ROW_STRIPES);
+        grid.addThemeVariants(com.vaadin.flow.component.grid.GridVariant.LUMO_COLUMN_BORDERS,
+                com.vaadin.flow.component.grid.GridVariant.LUMO_ROW_STRIPES);
 
         String visible = currentProject.getVisibleColumns();
         if (visible == null || visible.trim().isEmpty()) {
             visible = "EDT,Nombre,Pred.,Responsable,Inicio,Fin,Duración,Coste";
         }
-        
+
         this.showBaseline = visible.contains("LB");
 
         if (visible.contains("EDT"))
@@ -270,8 +279,10 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
             grid.addComponentHierarchyColumn(task -> {
                 String prefix = task.isMilestone() ? "◆ " : "";
                 Span nameSpan = new Span(prefix + task.getName());
-                if (task.isGroup()) nameSpan.getStyle().set("font-weight", "bold");
-                if (task.isCritical()) nameSpan.getStyle().set("color", "#d32f2f");
+                if (task.isGroup())
+                    nameSpan.getStyle().set("font-weight", "bold");
+                if (task.isCritical())
+                    nameSpan.getStyle().set("color", "#d32f2f");
                 return nameSpan;
             }).setHeader("Nombre").setFlexGrow(3).setResizable(true);
 
@@ -281,6 +292,7 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
                 predField.addThemeVariants(TextFieldVariant.LUMO_SMALL);
                 predField.setPlaceholder("ID");
                 predField.setWidthFull();
+                predField.setReadOnly(isReadOnlyView);
                 if (task.getPredecessor() != null) predField.setValue(task.getPredecessor().getId().toString());
                 predField.addValueChangeListener(e -> {
                     if (e.isFromClient()) {
@@ -301,14 +313,16 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
                                     } else {
                                         task.setPredecessor(pred);
                                     }
-                                    if (task.getDependencyType() == TaskDependencyType.NONE || task.getDependencyType() == null) {
+                                    if (task.getDependencyType() == TaskDependencyType.NONE
+                                            || task.getDependencyType() == null) {
                                         task.setDependencyType(TaskDependencyType.FINISH_TO_START);
                                     }
                                     try {
                                         taskService.saveTask(task);
                                         refreshData();
                                     } catch (IllegalStateException ex) {
-                                        Notification.show(ex.getMessage(), 5000, Notification.Position.MIDDLE).addThemeVariants(NotificationVariant.LUMO_ERROR);
+                                        Notification.show(ex.getMessage(), 5000, Notification.Position.MIDDLE)
+                                                .addThemeVariants(NotificationVariant.LUMO_ERROR);
                                         task.setPredecessor(null);
                                         predField.setValue(e.getOldValue() != null ? e.getOldValue() : "");
                                     }
@@ -328,23 +342,26 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
 
         if (visible.contains("Responsable"))
             grid.addColumn(t -> t.getAssignee() != null ? t.getAssignee().getName() : "-")
-                .setHeader("Responsable").setFlexGrow(1).setResizable(true);
+                    .setHeader("Responsable").setFlexGrow(1).setResizable(true);
 
         if (visible.contains("Inicio"))
-            grid.addColumn(t -> t.getStartDate().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")))
-                .setHeader("Inicio").setFlexGrow(1).setResizable(true);
-        
+            grid.addColumn(
+                    t -> t.getStartDate().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")))
+                    .setHeader("Inicio").setFlexGrow(1).setResizable(true);
+
         if (visible.contains("Fin"))
             grid.addColumn(t -> t.getEndDate().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")))
-                .setHeader("Fin").setFlexGrow(1).setResizable(true);
-        
+                    .setHeader("Fin").setFlexGrow(1).setResizable(true);
+
         if (visible.contains("Duración"))
             grid.addColumn(task -> {
-                if (task.isMilestone()) return "0";
+                if (task.isMilestone())
+                    return "0";
                 if (currentProject.getDurationUnit().equals("HOURS")) {
                     return (task.getDuration() != null ? task.getDuration() : 0) + "h";
                 }
-                return (task.getDuration() != null ? task.getDuration() : (ChronoUnit.DAYS.between(task.getStartDate(), task.getEndDate()) + 1)) + "d";
+                return (task.getDuration() != null ? task.getDuration()
+                        : (ChronoUnit.DAYS.between(task.getStartDate(), task.getEndDate()) + 1)) + "d";
             }).setHeader("Duración").setFlexGrow(1).setResizable(true);
 
         if (visible.contains("Coste"))
@@ -355,25 +372,31 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
             if (visible.contains("Inicio LB"))
                 grid.addColumn(task -> {
                     TaskBaseline tb = taskBaselineMap.get(task.getId());
-                    return tb != null ? tb.getStartDate().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")) : "-";
+                    return tb != null
+                            ? tb.getStartDate().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
+                            : "-";
                 }).setHeader("Inicio LB").setFlexGrow(1).setResizable(true);
-            
+
             if (visible.contains("Fin LB"))
                 grid.addColumn(task -> {
                     TaskBaseline tb = taskBaselineMap.get(task.getId());
-                    return tb != null ? tb.getEndDate().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")) : "-";
+                    return tb != null
+                            ? tb.getEndDate().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
+                            : "-";
                 }).setHeader("Fin LB").setFlexGrow(1).setResizable(true);
-            
+
             if (visible.contains("Duración LB"))
                 grid.addColumn(task -> {
                     TaskBaseline tb = taskBaselineMap.get(task.getId());
-                    if (tb == null) return "-";
+                    if (tb == null)
+                        return "-";
                     if (currentProject.getDurationUnit().equals("HOURS")) {
                         return (tb.getDuration() != null ? tb.getDuration() : 0) + "h";
                     }
-                    return (tb.getDuration() != null ? tb.getDuration() : (ChronoUnit.DAYS.between(tb.getStartDate(), tb.getEndDate()) + 1)) + "d";
+                    return (tb.getDuration() != null ? tb.getDuration()
+                            : (ChronoUnit.DAYS.between(tb.getStartDate(), tb.getEndDate()) + 1)) + "d";
                 }).setHeader("Duración LB").setFlexGrow(1).setResizable(true);
-            
+
             if (visible.contains("Coste LB"))
                 grid.addColumn(task -> String.format("%.2f €", calculateBaselineTaskCost(task)))
                         .setHeader("Coste LB").setFlexGrow(1).setResizable(true);
@@ -384,8 +407,10 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
                     double baseline = calculateBaselineTaskCost(task);
                     double diff = actual - baseline;
                     Span span = new Span(String.format("%+.2f €", diff));
-                    if (diff > 0) span.getStyle().set("color", "red");
-                    else if (diff < 0) span.getStyle().set("color", "green");
+                    if (diff > 0)
+                        span.getStyle().set("color", "red");
+                    else if (diff < 0)
+                        span.getStyle().set("color", "green");
                     return span;
                 }).setHeader("Variación Coste").setFlexGrow(1).setResizable(true);
         }
@@ -394,23 +419,24 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
     private void openColumnConfigDialog() {
         Dialog dialog = new Dialog();
         dialog.setHeaderTitle("Configurar Columnas");
-        
+
         VerticalLayout content = new VerticalLayout();
         content.setPadding(false);
-        
+
         CheckboxGroup<String> group = new CheckboxGroup<>();
-        group.setItems("EDT", "Nombre", "Pred.", "Responsable", "Inicio", "Fin", "Duración", "Coste", "Inicio LB", "Fin LB", "Duración LB", "Coste LB", "Variación Coste");
+        group.setItems("EDT", "Nombre", "Pred.", "Responsable", "Inicio", "Fin", "Duración", "Coste", "Inicio LB",
+                "Fin LB", "Duración LB", "Coste LB", "Variación Coste");
         group.addThemeVariants(CheckboxGroupVariant.LUMO_VERTICAL);
-        
+
         String visible = currentProject.getVisibleColumns();
         if (visible != null) {
             Set<String> initial = Stream.of(visible.split(",")).collect(Collectors.toSet());
             group.setValue(initial);
         }
-        
+
         content.add(new Span("Selecciona las columnas que deseas visualizar:"), group);
         dialog.add(content);
-        
+
         Button saveBtn = new Button("Guardar", e -> {
             Set<String> selected = group.getValue();
             if (selected.isEmpty()) {
@@ -424,7 +450,7 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
             Notification.show("Configuración de columnas guardada");
         });
         saveBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-        
+
         dialog.getFooter().add(new Button("Cancelar", ev -> dialog.close()), saveBtn);
         dialog.open();
     }
@@ -455,33 +481,36 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
 
     private void refreshData() {
         tasks = taskService.getTasksByProject(currentProject);
-        
+
         // Load baseline data if selected
         if (selectedBaseline != null) {
             taskBaselineMap = taskService.getTaskBaselineMap(selectedBaseline);
         } else {
             taskBaselineMap.clear();
         }
-        
+
         configureGrid();
 
         Task projectRoot = new Task();
         projectRoot.setId(-1L);
         projectRoot.setName(currentProject.getName());
-        projectRoot.setStartDate(currentProject.getStartDate() != null ? currentProject.getStartDate().atTime(currentProject.getWorkStartHour()) : LocalDateTime.now());
-        projectRoot.setEndDate(currentProject.getEndDate() != null ? currentProject.getEndDate().atTime(currentProject.getWorkEndHour()) : LocalDateTime.now().plusDays(1));
+        projectRoot.setStartDate(currentProject.getStartDate() != null
+                ? currentProject.getStartDate().atTime(currentProject.getWorkStartHour())
+                : LocalDateTime.now());
+        projectRoot.setEndDate(currentProject.getEndDate() != null
+                ? currentProject.getEndDate().atTime(currentProject.getWorkEndHour())
+                : LocalDateTime.now().plusDays(1));
         projectRoot.setGroup(true);
         projectRoot.setWbsCode("1.");
 
         grid.setItems(
-            java.util.List.of(projectRoot),
-            task -> {
-                if (task.getId() != null && task.getId().equals(-1L)) {
-                    return tasks.stream().filter(t -> t.getParentGroup() == null).toList();
-                }
-                return tasks.stream().filter(t -> task.equals(t.getParentGroup())).toList();
-            }
-        );
+                java.util.List.of(projectRoot),
+                task -> {
+                    if (task.getId() != null && task.getId().equals(-1L)) {
+                        return tasks.stream().filter(t -> t.getParentGroup() == null).toList();
+                    }
+                    return tasks.stream().filter(t -> task.equals(t.getParentGroup())).toList();
+                });
         grid.expand(projectRoot);
         grid.expand(tasks.stream().filter(Task::isGroup).toList());
 
@@ -490,8 +519,10 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
     }
 
     private void calculateDateRange() {
-        LocalDate tasksMin = tasks.stream().map(t -> t.getStartDate().toLocalDate()).min(LocalDate::compareTo).orElse(null);
-        LocalDate tasksMax = tasks.stream().map(t -> t.getEndDate().toLocalDate()).max(LocalDate::compareTo).orElse(null);
+        LocalDate tasksMin = tasks.stream().map(t -> t.getStartDate().toLocalDate()).min(LocalDate::compareTo)
+                .orElse(null);
+        LocalDate tasksMax = tasks.stream().map(t -> t.getEndDate().toLocalDate()).max(LocalDate::compareTo)
+                .orElse(null);
 
         LocalDate projStart = currentProject.getStartDate();
         LocalDate projEnd = currentProject.getEndDate();
@@ -518,15 +549,19 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
 
     private List<Task> getHierarchicalTasks() {
         List<Task> result = new java.util.ArrayList<>();
-        
+
         Task projectRoot = new Task();
         projectRoot.setId(-1L);
         projectRoot.setName(currentProject.getName());
-        projectRoot.setStartDate(currentProject.getStartDate() != null ? currentProject.getStartDate().atTime(currentProject.getWorkStartHour()) : LocalDateTime.now());
-        projectRoot.setEndDate(currentProject.getEndDate() != null ? currentProject.getEndDate().atTime(currentProject.getWorkEndHour()) : LocalDateTime.now().plusDays(1));
+        projectRoot.setStartDate(currentProject.getStartDate() != null
+                ? currentProject.getStartDate().atTime(currentProject.getWorkStartHour())
+                : LocalDateTime.now());
+        projectRoot.setEndDate(currentProject.getEndDate() != null
+                ? currentProject.getEndDate().atTime(currentProject.getWorkEndHour())
+                : LocalDateTime.now().plusDays(1));
         projectRoot.setGroup(true);
         projectRoot.setWbsCode("1.");
-        
+
         result.add(projectRoot);
 
         List<Task> roots = tasks.stream().filter(t -> t.getParentGroup() == null).toList();
@@ -594,7 +629,7 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
                     .set("width", "1px")
                     .set("background-color", "#f0f0f0")
                     .set("z-index", "0");
-            
+
             if (!isWorkingDay(date)) {
                 Div holidayShade = new Div();
                 holidayShade.getStyle()
@@ -608,7 +643,7 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
                         .set("z-index", "0");
                 canvas.add(holidayShade);
             }
-            
+
             canvas.add(verticalLine);
 
             // Day marker
@@ -676,10 +711,11 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
         for (Task task : orderedTasks) {
             long startMinutes = ChronoUnit.MINUTES.between(viewMinDate.atStartOfDay(), task.getStartDate());
             long durationMinutes = ChronoUnit.MINUTES.between(task.getStartDate(), task.getEndDate());
-            
+
             double left = (double) startMinutes / (totalViewDays * 24 * 60.0) * 100.0;
             double width = (double) durationMinutes / (totalViewDays * 24 * 60.0) * 100.0;
-            if (width < 0.5) width = 0.5; // Min width to be visible
+            if (width < 0.5)
+                width = 0.5; // Min width to be visible
 
             Div bar = new Div();
             bar.setText(task.getName());
@@ -728,10 +764,11 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
                 TaskBaseline tb = taskBaselineMap.get(task.getId());
                 long blStartMinutes = ChronoUnit.MINUTES.between(viewMinDate.atStartOfDay(), tb.getStartDate());
                 long blDurationMinutes = ChronoUnit.MINUTES.between(tb.getStartDate(), tb.getEndDate());
-                
+
                 double blLeft = (double) blStartMinutes / (totalViewDays * 24 * 60.0) * 100.0;
                 double blWidth = (double) blDurationMinutes / (totalViewDays * 24 * 60.0) * 100.0;
-                if (blWidth < 0.5) blWidth = 0.5;
+                if (blWidth < 0.5)
+                    blWidth = 0.5;
 
                 Div bBar = new Div();
                 bBar.getStyle()
@@ -751,17 +788,24 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
         }
 
         // Render Project Markers (Start and End)
-        renderProjectMarker(canvas, currentProject.getStartDate().atTime(currentProject.getWorkStartHour()), "#4caf50", "Inicio Proyecto");
-        renderProjectMarker(canvas, currentProject.getEndDate() != null ? currentProject.getEndDate().atTime(currentProject.getWorkEndHour()) : null, "#f44336", "Fin Proyecto");
+        if (currentProject.getStartDate() != null) {
+            renderProjectMarker(canvas, currentProject.getStartDate().atTime(currentProject.getWorkStartHour()), "#4caf50",
+                    "Inicio Proyecto");
+        }
+        if (currentProject.getEndDate() != null) {
+            renderProjectMarker(canvas, currentProject.getEndDate().atTime(currentProject.getWorkEndHour()), "#f44336",
+                    "Fin Proyecto");
+        }
 
         // Render Dependency Arrows using Native Vaadin Divs
         for (Task task : orderedTasks) {
-            if (task.getPredecessor() != null && task.getPredecessor().getId() != null && taskIndexMap.containsKey(task.getPredecessor().getId())) {
+            if (task.getPredecessor() != null && task.getPredecessor().getId() != null
+                    && taskIndexMap.containsKey(task.getPredecessor().getId())) {
                 Task pred = orderedTasks.get(taskIndexMap.get(task.getPredecessor().getId()));
 
                 long predEndMin = ChronoUnit.MINUTES.between(viewMinDate.atStartOfDay(), pred.getEndDate());
                 long taskStartMin = ChronoUnit.MINUTES.between(viewMinDate.atStartOfDay(), task.getStartDate());
-                
+
                 double x1 = (double) predEndMin / (totalViewDays * 24 * 60.0) * 100.0;
                 double x2 = (double) taskStartMin / (totalViewDays * 24 * 60.0) * 100.0;
                 double y1 = headerHeight + taskIndexMap.get(pred.getId()) * rowHeight + (rowHeight / 2.0);
@@ -788,7 +832,8 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
     }
 
     private void renderProjectMarker(Div canvas, LocalDateTime dateTime, String color, String title) {
-        if (dateTime == null) return;
+        if (dateTime == null)
+            return;
         long minutesFromStart = ChronoUnit.MINUTES.between(viewMinDate.atStartOfDay(), dateTime);
         double left = (double) minutesFromStart / (totalViewDays * 24 * 60.0) * 100.0;
 
@@ -842,6 +887,7 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
     }
 
     private void openTaskDialog(Task task) {
+        if (isReadOnlyView) return;
         Dialog dialog = new Dialog();
         dialog.setHeaderTitle(task.getId() == null ? "Nueva Tarea" : "Editar Tarea");
 
@@ -850,7 +896,8 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
         TextField nameField = new TextField("Nombre");
         TextArea descField = new TextArea("Descripción");
         DateTimePicker startDateField = new DateTimePicker("Fecha/Hora Inicio");
-        IntegerField durationField = new IntegerField("Duración (" + (currentProject.getDurationUnit().equals("DAYS") ? "Días" : "Horas") + ")");
+        IntegerField durationField = new IntegerField(
+                "Duración (" + (currentProject.getDurationUnit().equals("DAYS") ? "Días" : "Horas") + ")");
         durationField.setMin(1);
         DateTimePicker endDateField = new DateTimePicker("Fecha/Hora Fin");
 
@@ -861,8 +908,10 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
                 if (currentProject.getDurationUnit().equals("HOURS")) {
                     endDateField.setValue(taskService.addWorkingHours(startDateField.getValue(), val, currentProject));
                 } else {
-                    long hoursPerDay = ChronoUnit.HOURS.between(currentProject.getWorkStartHour(), currentProject.getWorkEndHour());
-                    endDateField.setValue(taskService.addWorkingHours(startDateField.getValue(), (int)(val * hoursPerDay), currentProject));
+                    long hoursPerDay = ChronoUnit.HOURS.between(currentProject.getWorkStartHour(),
+                            currentProject.getWorkEndHour());
+                    endDateField.setValue(taskService.addWorkingHours(startDateField.getValue(),
+                            (int) (val * hoursPerDay), currentProject));
                 }
             }
         });
@@ -879,23 +928,29 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
                 if (currentProject.getDurationUnit().equals("HOURS")) {
                     endDateField.setValue(taskService.addWorkingHours(correctedStart, val, currentProject));
                 } else {
-                    long hoursPerDay = ChronoUnit.HOURS.between(currentProject.getWorkStartHour(), currentProject.getWorkEndHour());
-                    endDateField.setValue(taskService.addWorkingHours(correctedStart, (int)(val * hoursPerDay), currentProject));
+                    long hoursPerDay = ChronoUnit.HOURS.between(currentProject.getWorkStartHour(),
+                            currentProject.getWorkEndHour());
+                    endDateField.setValue(
+                            taskService.addWorkingHours(correctedStart, (int) (val * hoursPerDay), currentProject));
                 }
             }
         });
 
         endDateField.addValueChangeListener(e -> {
             if (e.isFromClient() && e.getValue() != null && startDateField.getValue() != null) {
-                // If the user changes the end date manually, we recalculate duration in hours first
+                // If the user changes the end date manually, we recalculate duration in hours
+                // first
                 long totalHours = ChronoUnit.HOURS.between(startDateField.getValue(), e.getValue());
-                // But we must account for non-working hours and days... this is complex for a simple listener.
-                // For now, let's just use the hour difference as a rough estimate or trust the user.
+                // But we must account for non-working hours and days... this is complex for a
+                // simple listener.
+                // For now, let's just use the hour difference as a rough estimate or trust the
+                // user.
                 if (currentProject.getDurationUnit().equals("HOURS")) {
-                    durationField.setValue((int)totalHours);
+                    durationField.setValue((int) totalHours);
                 } else {
-                    long hoursPerDay = ChronoUnit.HOURS.between(currentProject.getWorkStartHour(), currentProject.getWorkEndHour());
-                    durationField.setValue((int)Math.ceil((double)totalHours / hoursPerDay));
+                    long hoursPerDay = ChronoUnit.HOURS.between(currentProject.getWorkStartHour(),
+                            currentProject.getWorkEndHour());
+                    durationField.setValue((int) Math.ceil((double) totalHours / hoursPerDay));
                 }
             }
         });
@@ -915,28 +970,34 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
         com.vaadin.flow.component.HasValue.ValueChangeListener<com.vaadin.flow.component.AbstractField.ComponentValueChangeEvent<ComboBox<Task>, Task>> predListener = e -> {
             Task pred = predecessorBox.getValue();
             TaskDependencyType depType = depTypeBox.getValue();
-            
+
             if (e.isFromClient() && pred != null) {
                 if (depType == null || depType == TaskDependencyType.NONE) {
                     depTypeBox.setValue(TaskDependencyType.FINISH_TO_START);
                     depType = TaskDependencyType.FINISH_TO_START;
                 }
-                
+
                 int duration = durationField.getValue() != null ? durationField.getValue() : 1;
-                int durationHours = currentProject.getDurationUnit().equals("HOURS") ? duration : (int)(duration * ChronoUnit.HOURS.between(currentProject.getWorkStartHour(), currentProject.getWorkEndHour()));
-                
+                int durationHours = currentProject.getDurationUnit().equals("HOURS") ? duration
+                        : (int) (duration * ChronoUnit.HOURS.between(currentProject.getWorkStartHour(),
+                                currentProject.getWorkEndHour()));
+
                 if (depType == TaskDependencyType.FINISH_TO_START) {
                     startDateField.setValue(taskService.ensureWorkingTime(pred.getEndDate(), currentProject));
-                    endDateField.setValue(taskService.addWorkingHours(startDateField.getValue(), durationHours, currentProject));
+                    endDateField.setValue(
+                            taskService.addWorkingHours(startDateField.getValue(), durationHours, currentProject));
                 } else if (depType == TaskDependencyType.START_TO_START) {
                     startDateField.setValue(pred.getStartDate());
-                    endDateField.setValue(taskService.addWorkingHours(startDateField.getValue(), durationHours, currentProject));
+                    endDateField.setValue(
+                            taskService.addWorkingHours(startDateField.getValue(), durationHours, currentProject));
                 } else if (depType == TaskDependencyType.FINISH_TO_FINISH) {
                     endDateField.setValue(taskService.ensureWorkingTime(pred.getEndDate(), currentProject));
-                    startDateField.setValue(taskService.subtractWorkingHours(endDateField.getValue(), durationHours, currentProject));
+                    startDateField.setValue(
+                            taskService.subtractWorkingHours(endDateField.getValue(), durationHours, currentProject));
                 } else if (depType == TaskDependencyType.START_TO_FINISH) {
                     endDateField.setValue(taskService.ensureWorkingTime(pred.getStartDate(), currentProject));
-                    startDateField.setValue(taskService.subtractWorkingHours(endDateField.getValue(), durationHours, currentProject));
+                    startDateField.setValue(
+                            taskService.subtractWorkingHours(endDateField.getValue(), durationHours, currentProject));
                 }
             }
         };
@@ -944,23 +1005,29 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
         com.vaadin.flow.component.HasValue.ValueChangeListener<com.vaadin.flow.component.AbstractField.ComponentValueChangeEvent<ComboBox<TaskDependencyType>, TaskDependencyType>> depTypeListener = e -> {
             Task pred = predecessorBox.getValue();
             TaskDependencyType depType = e.getValue();
-            
+
             if (e.isFromClient() && pred != null && depType != null && depType != TaskDependencyType.NONE) {
                 int duration = durationField.getValue() != null ? durationField.getValue() : 1;
-                int durationHours = currentProject.getDurationUnit().equals("HOURS") ? duration : (int)(duration * ChronoUnit.HOURS.between(currentProject.getWorkStartHour(), currentProject.getWorkEndHour()));
-                
+                int durationHours = currentProject.getDurationUnit().equals("HOURS") ? duration
+                        : (int) (duration * ChronoUnit.HOURS.between(currentProject.getWorkStartHour(),
+                                currentProject.getWorkEndHour()));
+
                 if (depType == TaskDependencyType.FINISH_TO_START) {
                     startDateField.setValue(taskService.ensureWorkingTime(pred.getEndDate(), currentProject));
-                    endDateField.setValue(taskService.addWorkingHours(startDateField.getValue(), durationHours, currentProject));
+                    endDateField.setValue(
+                            taskService.addWorkingHours(startDateField.getValue(), durationHours, currentProject));
                 } else if (depType == TaskDependencyType.START_TO_START) {
                     startDateField.setValue(pred.getStartDate());
-                    endDateField.setValue(taskService.addWorkingHours(startDateField.getValue(), durationHours, currentProject));
+                    endDateField.setValue(
+                            taskService.addWorkingHours(startDateField.getValue(), durationHours, currentProject));
                 } else if (depType == TaskDependencyType.FINISH_TO_FINISH) {
                     endDateField.setValue(taskService.ensureWorkingTime(pred.getEndDate(), currentProject));
-                    startDateField.setValue(taskService.subtractWorkingHours(endDateField.getValue(), durationHours, currentProject));
+                    startDateField.setValue(
+                            taskService.subtractWorkingHours(endDateField.getValue(), durationHours, currentProject));
                 } else if (depType == TaskDependencyType.START_TO_FINISH) {
                     endDateField.setValue(taskService.ensureWorkingTime(pred.getStartDate(), currentProject));
-                    startDateField.setValue(taskService.subtractWorkingHours(endDateField.getValue(), durationHours, currentProject));
+                    startDateField.setValue(
+                            taskService.subtractWorkingHours(endDateField.getValue(), durationHours, currentProject));
                 }
             }
         };
@@ -978,7 +1045,8 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
         binder.forField(predecessorBox).bind(Task::getPredecessor, Task::setPredecessor);
         binder.forField(depTypeBox).bind(Task::getDependencyType, Task::setDependencyType);
 
-        com.vaadin.flow.component.checkbox.Checkbox milestoneBox = new com.vaadin.flow.component.checkbox.Checkbox("Hito (Milestone)");
+        com.vaadin.flow.component.checkbox.Checkbox milestoneBox = new com.vaadin.flow.component.checkbox.Checkbox(
+                "Hito (Milestone)");
         binder.forField(milestoneBox).bind(Task::isMilestone, Task::setMilestone);
 
         milestoneBox.addValueChangeListener(e -> {
@@ -1003,21 +1071,23 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
             task.setDependencyType(TaskDependencyType.NONE);
             task.setStartDate(LocalDate.now().atTime(currentProject.getWorkStartHour()));
             task.setEndDate(LocalDate.now().atTime(currentProject.getWorkEndHour()));
-            long hoursPerDay = ChronoUnit.HOURS.between(currentProject.getWorkStartHour(), currentProject.getWorkEndHour());
-            task.setDuration(currentProject.getDurationUnit().equals("HOURS") ? (int)hoursPerDay : 1);
+            long hoursPerDay = ChronoUnit.HOURS.between(currentProject.getWorkStartHour(),
+                    currentProject.getWorkEndHour());
+            task.setDuration(currentProject.getDurationUnit().equals("HOURS") ? (int) hoursPerDay : 1);
         }
-        
+
         // Initialize fields from task entity
         binder.readBean(task);
-        
+
         // Ensure duration is set if it was null (for legacy tasks)
         if (task.getDuration() == null) {
             long days = ChronoUnit.DAYS.between(task.getStartDate(), task.getEndDate()) + 1;
             if (currentProject.getDurationUnit().equals("HOURS")) {
-                long hoursPerDay = ChronoUnit.HOURS.between(currentProject.getWorkStartHour(), currentProject.getWorkEndHour());
-                task.setDuration((int)(days * hoursPerDay));
+                long hoursPerDay = ChronoUnit.HOURS.between(currentProject.getWorkStartHour(),
+                        currentProject.getWorkEndHour());
+                task.setDuration((int) (days * hoursPerDay));
             } else {
-                task.setDuration((int)days);
+                task.setDuration((int) days);
             }
             durationField.setValue(task.getDuration());
         }
@@ -1043,7 +1113,9 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
                     Notification.show("Guardado correctamente", 3000, Notification.Position.BOTTOM_CENTER)
                             .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
                 } else {
-                    Notification.show("Por favor, revise los campos marcados como requeridos", 3000, Notification.Position.MIDDLE)
+                    Notification
+                            .show("Por favor, revise los campos marcados como requeridos", 3000,
+                                    Notification.Position.MIDDLE)
                             .addThemeVariants(NotificationVariant.LUMO_WARNING);
                 }
             } catch (IllegalStateException ex) {
@@ -1100,7 +1172,7 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
 
     private void renderVerticalLine(Div canvas, double x, double y1, double y2, String color) {
         double top = Math.min(y1, y2);
-        double height = Math.abs(y2 - y1) + 2; 
+        double height = Math.abs(y2 - y1) + 2;
         Div line = new Div();
         line.getStyle()
                 .set("position", "absolute")
@@ -1155,22 +1227,24 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
         }
 
         Double costPerHour = task.getAssignee().getResource().getCostPerHour();
-        if (costPerHour == null) return 0.0;
+        if (costPerHour == null)
+            return 0.0;
 
         if (currentProject.getDurationUnit().equals("HOURS")) {
             return (task.getDuration() != null ? task.getDuration() : 0) * costPerHour;
         }
-        
+
         long days = ChronoUnit.DAYS.between(task.getStartDate(), task.getEndDate()) + 1;
         long hoursPerDay = ChronoUnit.HOURS.between(currentProject.getWorkStartHour(), currentProject.getWorkEndHour());
-        
+
         return days * hoursPerDay * costPerHour;
     }
 
     private double calculateBaselineTaskCost(Task task) {
         TaskBaseline tb = taskBaselineMap.get(task.getId());
-        if (tb == null) return 0.0;
-        
+        if (tb == null)
+            return 0.0;
+
         if (task.isGroup()) {
             List<Task> children = tasks.stream()
                     .filter(t -> task.equals(t.getParentGroup()))
@@ -1193,7 +1267,8 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
         }
 
         Double costPerHour = task.getAssignee().getResource().getCostPerHour();
-        if (costPerHour == null) return 0.0;
+        if (costPerHour == null)
+            return 0.0;
 
         if (currentProject.getDurationUnit().equals("HOURS")) {
             return (tb.getDuration() != null ? tb.getDuration() : 0) * costPerHour;
@@ -1201,13 +1276,14 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
 
         long days = ChronoUnit.DAYS.between(tb.getStartDate(), tb.getEndDate()) + 1;
         long hoursPerDay = ChronoUnit.HOURS.between(currentProject.getWorkStartHour(), currentProject.getWorkEndHour());
-        
+
         return days * hoursPerDay * costPerHour;
     }
 
     private boolean isWorkingDay(LocalDate date) {
         String workingDaysStr = currentProject.getWorkingDays();
-        if (workingDaysStr == null || workingDaysStr.isEmpty()) return true;
+        if (workingDaysStr == null || workingDaysStr.isEmpty())
+            return true;
         java.util.Set<java.time.DayOfWeek> workingDays = java.util.Arrays.stream(workingDaysStr.split(","))
                 .map(java.time.DayOfWeek::valueOf)
                 .collect(java.util.stream.Collectors.toSet());
@@ -1228,7 +1304,7 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
         workingDaysGroup.setItems(DayOfWeek.values());
         workingDaysGroup.setItemLabelGenerator(day -> day.getDisplayName(TextStyle.FULL, new Locale("es", "ES")));
         workingDaysGroup.addThemeVariants(CheckboxGroupVariant.LUMO_VERTICAL);
-        
+
         String[] savedDays = currentProject.getWorkingDays().split(",");
         Set<DayOfWeek> initialDays = Stream.of(savedDays)
                 .filter(s -> !s.isEmpty())
@@ -1238,7 +1314,7 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
 
         TimePicker startTime = new TimePicker("Hora Inicio Jornada");
         startTime.setValue(currentProject.getWorkStartHour());
-        
+
         TimePicker endTime = new TimePicker("Hora Fin Jornada");
         endTime.setValue(currentProject.getWorkEndHour());
 
@@ -1260,10 +1336,10 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
             currentProject.setWorkingDays(daysStr);
             currentProject.setWorkStartHour(startTime.getValue());
             currentProject.setWorkEndHour(endTime.getValue());
-            
+
             projectService.createOrUpdate(currentProject);
             Notification.show("Calendario actualizado. Recalculando cronograma...");
-            
+
             dialog.close();
             refreshData();
         });

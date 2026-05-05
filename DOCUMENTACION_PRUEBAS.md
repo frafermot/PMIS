@@ -43,15 +43,34 @@
 2. Mirar la vista general y comprobar que puedes ver tus proyectos desde la perspectiva de lectura/consulta **[R24, R25]**.
 3. Abrir La Acta de Constitución y ojear el historial de ediciones **[R28, R35]**.
 4. Darle una **Valoración Numérica** (ponerle nota) y guardar **[R32, R33]**.
+5. En cualquier documento que tenga contenido, abrir el menú **Acciones** y seleccionar **Descargar PDF** para bajar el documento individual. **[R43,R44]**
+6. Cerrar sesión.
+
+### FASE 6: Gestión del Cronograma (Gantt y Recursos)
+> **Objetivo**: Planificación temporal y asignación de recursos.
+1. Iniciar sesión como **Usuario 1** (Director de Proyecto).
+2. Entrar en su proyecto y desplegar la sección de **Cronograma**.
+3. Definir fechas de inicio y fin si el proyecto es nuevo y pulsar **Crear Cronograma**.
+4. Pulsar el botón **Acceder al Cronograma**.
+5. Una vez creado, en **Configuracion** verificar que aparece el resumen del **Calendario Laboral** (días y horas de trabajo configurados).
+6. En **Configuracion** tambien aparece un boton de **Visibilidad de Columnas** el cual permite configurar las columnas que se muestran en la vista Gantt. Y otro de **Cambiar a dias** para cambiar la duracion de horas a dias.
+7. En la vista Gantt, crear una nueva tarea pulsando el botón "+" o haciendo doble clic en el calendario.
+8. Ajustar las horas de inicio y fin de la tarea (planificación a nivel de hora) y guardar.
+9. Añadir varias tareas que dependan de ellas y asignar un recurso. **Vincular un recurso**, desde la PMO se crean los recursos. Asegurarse de que el recurso se vincula correctamente al perfil desde la PMO.
+10. Entrar en el cronograma y ver el coste de cada tarea y el coste total del proyecto.
+11. En el boton **Planificacion** elegir las opciones **Asignar EDT** y **Calcular ruta critica**. Ademas de **Fijar linea base** para que se guarde la planificacion.
+12. En el icono de **Configuración** en la parte superior derecha, **Visibilidad de las columnas**, añadir las columnas de la linea base y verificar que se muestran correctamente.
+13. Cerrar sesión.
 
 ---
 
 ## 2. Estado de Implementación Actual
 
-1. **Requisitos Activos Integrados:** 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 19, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42
-2. **Requisitos Pendientes (No desarrollados):** 17, 20, 43, 44
+1. **Requisitos Activos Integrados:** 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45
+2. **Requisitos Pendientes (No desarrollados):** Ninguno
 
 
 ## 3. Peticiones
 
-- Se pidió implementar un nuevo requisito sobre la creacion de un cronograma, dicha implementacion no se ha llevado a cabo por el momento, en el próximo sprint se intentara implementar.
+- Se ha completado la integración del cronograma (Gantt) con planificación a nivel de hora y vinculación de recursos PMO.
+- Pendiente: Implementar flujo de firma digital para documentos finalizados.

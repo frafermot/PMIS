@@ -7,6 +7,7 @@ import com.example.document.Document;
 import com.example.document.DocumentService;
 import com.example.document.DocumentStatus;
 import com.example.document.DocumentType;
+import com.example.document.PdfService;
 import com.example.project.Project;
 import com.example.project.ProjectService;
 import com.example.resource.Resource;
@@ -40,6 +41,8 @@ import com.vaadin.flow.router.BeforeEvent;
 import com.vaadin.flow.router.HasUrlParameter;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
+import com.vaadin.flow.component.confirmdialog.ConfirmDialog;
+import com.vaadin.flow.component.notification.NotificationVariant;
 import jakarta.annotation.security.RolesAllowed;
 
 import java.time.DayOfWeek;
@@ -62,6 +65,7 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
     private final DocumentService documentService;
     private final TaskService taskService;
     private final ResourceService resourceService;
+    private final PdfService pdfService;
     private Project currentProject;
     private Grid<User> userGrid;
     private Details usersDetails;
@@ -70,6 +74,7 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
     // Permissions computed once in buildView
     private boolean isProgramDirector;
     private boolean isSponsor;
+    private boolean isProjectDirector;
 
     private TextField nameField;
     private Select<User> directorSelect;
@@ -92,7 +97,7 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
     public ProjectDetailView(ProjectService projectService, UserService userService,
             SecurityService securityService, CccService cccService,
             DocumentService documentService, TaskService taskService,
-            ResourceService resourceService) {
+            ResourceService resourceService, PdfService pdfService) {
         this.projectService = projectService;
         this.userService = userService;
         this.securityService = securityService;
@@ -100,6 +105,7 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         this.documentService = documentService;
         this.taskService = taskService;
         this.resourceService = resourceService;
+        this.pdfService = pdfService;
 
         setSizeFull();
         setPadding(true);
@@ -130,11 +136,22 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
 
     // ─── Main build ───────────────────────────────────────────────────────────
     private void buildView() {
+        computePermissions();
         buildBreadcrumb();
         buildProjectInfoSection();
         buildScheduleSection();
         buildUsersSection();
         buildDocumentsSection();
+    }
+
+    private void computePermissions() {
+        User cu = securityService.getCurrentUser();
+        isProgramDirector = currentProject.getProgram() != null
+                && securityService.isProgramDirector(currentProject.getProgram().getId());
+        isSponsor = currentProject.getSponsor() != null && cu != null
+                && currentProject.getSponsor().getId().equals(cu.getId());
+        isProjectDirector = currentProject.getDirector() != null && cu != null
+                && currentProject.getDirector().getId().equals(cu.getId());
     }
 
     // ─── Breadcrumb ───────────────────────────────────────────────────────────
@@ -219,11 +236,6 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         add(formLayout);
 
         // Compute permissions
-        isProgramDirector = currentProject.getProgram() != null
-                && securityService.isProgramDirector(currentProject.getProgram().getId());
-        User cu = securityService.getCurrentUser();
-        isSponsor = currentProject.getSponsor() != null && cu != null
-                && currentProject.getSponsor().getId().equals(cu.getId());
         boolean isSystemAdmin = securityService.isAdmin();
         boolean canEditProjectInfo = isSystemAdmin || isProgramDirector;
         boolean canAssignDirector = canEditProjectInfo || isSponsor;
@@ -308,11 +320,7 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
     // ─── Users section (collapsible, closed by default) ───────────────────────
 
     private void buildUsersSection() {
-        User cu = securityService.getCurrentUser();
-        boolean isSystemAdmin = securityService.isAdmin(); // Re-declared here for scope, or assume it's a field/passed.
-                                                           // Assuming it's a local variable for this method.
-        boolean isProjectDirector = currentProject.getDirector() != null && cu != null
-                && currentProject.getDirector().getId().equals(cu.getId());
+        boolean isSystemAdmin = securityService.isAdmin(); 
         boolean canManageUsers = isSystemAdmin || isSponsor || isProjectDirector;
         
         userGrid = new Grid<>(User.class, false);
@@ -340,9 +348,15 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         // Seed documents (idempotent)
         documentService.initDocumentsForProject(currentProject);
 
-        // ── Section header ──
+        HorizontalLayout header = new HorizontalLayout();
+        header.setWidthFull();
+        header.setAlignItems(Alignment.CENTER);
+        header.setJustifyContentMode(JustifyContentMode.BETWEEN);
+
         H3 heading = new H3("Documentos del Proyecto");
-        add(heading);
+        header.add(heading);
+
+        add(header);
 
         // ── Toggle buttons ──────────────────────────────────────────────────
         btnByPhase = new Button("Por Fases", e -> switchDocView(true));
@@ -516,11 +530,18 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         if (isProgramDirector) {
             var verItem = menu.addItem("Ver", e -> handleModificar(row.document()));
             verItem.setEnabled(!isPorCrear && row.document() != null);
+            var downloadItem = menu.addItem("Descargar PDF", e -> downloadDocumentPdf(row.document()));
+            downloadItem.setEnabled(!isPorCrear && row.document() != null);
         } else {
             // Crear — only when POR_CREAR and user is not just a viewer
             // (sponsor can't create)
             var crearItem = menu.addItem("Crear", e -> handleCrear(row.type()));
-            crearItem.setEnabled(isPorCrear && !isSponsor);
+            User cu = securityService.getCurrentUser();
+            boolean isSystemAdmin = securityService.isAdmin();
+            boolean isProjectDirector = currentProject.getDirector() != null && cu != null && currentProject.getDirector().getId().equals(cu.getId());
+            boolean isMember = cu != null && cu.getProject() != null && cu.getProject().getId().equals(currentProject.getId());
+            boolean canCreate = isSystemAdmin || isProjectDirector || isMember;
+            crearItem.setEnabled(isPorCrear && canCreate && !isSponsor);
     
             // Modificar — only when document exists
             var modificarItem = menu.addItem("Modificar", e -> handleModificar(row.document()));
@@ -531,8 +552,8 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
                     .setEnabled(false);
             menu.addItem("Firmar", e -> Notification.show("Funcionalidad de firma no disponible aún"))
                     .setEnabled(false);
-            menu.addItem("Imprimir", e -> Notification.show("Descarga PDF no disponible aún"))
-                    .setEnabled(false);
+            menu.addItem("Descargar PDF", e -> downloadDocumentPdf(row.document()))
+                    .setEnabled(!isPorCrear && row.document() != null);
         }
 
         return actionsBtn;
@@ -618,7 +639,16 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
                 Button removeButton = new Button("Eliminar", e -> unassignUser(user));
                 removeButton.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_ERROR);
                 
-                actions.add(assignResourceBtn, removeButton);
+                User cu = securityService.getCurrentUser();
+                boolean isSystemAdmin = securityService.isAdmin();
+                boolean isProjectDirector = currentProject.getDirector() != null && cu != null && currentProject.getDirector().getId().equals(cu.getId());
+                boolean canAssignResources = isSystemAdmin || isProjectDirector;
+                
+                if (canAssignResources) {
+                    actions.add(assignResourceBtn);
+                }
+                actions.add(removeButton);
+                
                 return actions;
             }).setHeader("Acciones").setWidth("250px").setFlexGrow(0).setResizable(true);
         }
@@ -631,7 +661,7 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
     }
 
     private void updateDirectorList() {
-        List<User> projectUsers = userService.findByProject(currentProject.getId());
+        List<User> projectUsers = new ArrayList<>(userService.findByProject(currentProject.getId()));
         if (currentProject.getDirector() != null && !projectUsers.contains(currentProject.getDirector())) {
             projectUsers.add(currentProject.getDirector());
         }
@@ -694,12 +724,30 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
     }
 
     private void unassignUser(User user) {
-        user.setProject(null);
-        user.setResource(null); // Also clear resource if unassigned from project
-        userService.createOrUpdate(user);
-        updateUserList();
-        updateDirectorList();
-        Notification.show("Usuario desasignado exitosamente");
+        User currentUser = securityService.getCurrentUser();
+        if (currentUser != null && currentUser.getId().equals(user.getId())) {
+            Notification.show("No puedes eliminarte a ti mismo del proyecto", 3000, Notification.Position.MIDDLE)
+                    .addThemeVariants(NotificationVariant.LUMO_ERROR);
+            return;
+        }
+
+        ConfirmDialog dialog = new ConfirmDialog();
+        dialog.setHeader("Confirmar Desasignación");
+        dialog.setText("¿Estás seguro de que deseas eliminar a " + user.getName()
+                + " del proyecto? También se desvinculará de todas sus tareas en este proyecto.");
+        dialog.setCancelable(true);
+        dialog.setConfirmText("Eliminar");
+        dialog.setConfirmButtonTheme("error primary");
+        dialog.addConfirmListener(e -> {
+            taskService.unassignUserFromProjectTasks(user, currentProject);
+            user.setProject(null);
+            user.setResource(null);
+            userService.createOrUpdate(user);
+            updateUserList();
+            updateDirectorList();
+            Notification.show("Usuario desasignado del proyecto y de sus tareas");
+        });
+        dialog.open();
     }
 
     private void openAssignResourceDialog(User user) {
@@ -732,5 +780,47 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         dialog.getFooter().add(new Button("Cancelar", e -> dialog.close()));
         dialog.getFooter().add(saveBtn);
         dialog.open();
+    }
+
+    private void downloadDocumentPdf(Document document) {
+        try {
+            if (document.getContent() == null || document.getContent().isBlank()) {
+                Notification.show("El documento no tiene contenido para generar el PDF");
+                return;
+            }
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("<html><head><meta charset='UTF-8'/><style>");
+            sb.append("body { font-family: 'Helvetica', sans-serif; font-size: 11pt; line-height: 1.5; color: #333; }");
+            sb.append("h1 { color: #2c3e50; text-align: center; margin-bottom: 20px; }");
+            sb.append("table { width: 100%; border-collapse: collapse; margin-top: 20px; table-layout: fixed; word-wrap: break-word; }");
+            sb.append("th, td { border: 1px solid #dee2e6; padding: 12px; text-align: left; vertical-align: top; }");
+            sb.append("th { background-color: #f8f9fa; font-weight: bold; color: #495057; border-bottom: 2px solid #dee2e6; }");
+            sb.append("tr:nth-child(even) { background-color: #fcfcfc; }");
+            sb.append("img { max-width: 100%; height: auto; }");
+            sb.append("</style></head><body>");
+            sb.append("<h1>").append(document.getType().getLabel()).append("</h1>");
+            sb.append("<div style='text-align: right; font-size: 0.9em; color: #7f8c8d; margin-bottom: 20px;'>");
+            sb.append("Proyecto: ").append(currentProject.getName()).append("<br/>");
+            sb.append("Fecha: ").append(java.time.LocalDate.now().toString());
+            sb.append("</div>");
+            sb.append(document.getContent());
+            sb.append("</body></html>");
+
+            byte[] pdfBytes = pdfService.generatePdfFromHtml(sb.toString());
+
+            com.vaadin.flow.server.StreamResource resource = new com.vaadin.flow.server.StreamResource(
+                document.getType().getLabel() + ".pdf",
+                () -> new java.io.ByteArrayInputStream(pdfBytes));
+            
+            com.vaadin.flow.component.html.Anchor downloadLink = new com.vaadin.flow.component.html.Anchor(resource, "");
+            downloadLink.getElement().setAttribute("download", true);
+            downloadLink.getElement().getStyle().set("display", "none");
+            add(downloadLink);
+            downloadLink.getElement().executeJs("this.click()");
+            UI.getCurrent().getPage().executeJs("setTimeout(function() { $0.remove(); }, 1000);", downloadLink.getElement());
+        } catch (Exception ex) {
+            Notification.show("Error al generar el PDF: " + ex.getMessage(), 5000, Notification.Position.MIDDLE);
+        }
     }
 }
