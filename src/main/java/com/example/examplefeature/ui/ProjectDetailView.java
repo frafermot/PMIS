@@ -41,6 +41,8 @@ import com.vaadin.flow.router.BeforeEvent;
 import com.vaadin.flow.router.HasUrlParameter;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
+import com.vaadin.flow.component.confirmdialog.ConfirmDialog;
+import com.vaadin.flow.component.notification.NotificationVariant;
 import jakarta.annotation.security.RolesAllowed;
 
 import java.time.DayOfWeek;
@@ -645,7 +647,7 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
     }
 
     private void updateDirectorList() {
-        List<User> projectUsers = userService.findByProject(currentProject.getId());
+        List<User> projectUsers = new ArrayList<>(userService.findByProject(currentProject.getId()));
         if (currentProject.getDirector() != null && !projectUsers.contains(currentProject.getDirector())) {
             projectUsers.add(currentProject.getDirector());
         }
@@ -708,12 +710,30 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
     }
 
     private void unassignUser(User user) {
-        user.setProject(null);
-        user.setResource(null); // Also clear resource if unassigned from project
-        userService.createOrUpdate(user);
-        updateUserList();
-        updateDirectorList();
-        Notification.show("Usuario desasignado exitosamente");
+        User currentUser = securityService.getCurrentUser();
+        if (currentUser != null && currentUser.getId().equals(user.getId())) {
+            Notification.show("No puedes eliminarte a ti mismo del proyecto", 3000, Notification.Position.MIDDLE)
+                    .addThemeVariants(NotificationVariant.LUMO_ERROR);
+            return;
+        }
+
+        ConfirmDialog dialog = new ConfirmDialog();
+        dialog.setHeader("Confirmar Desasignación");
+        dialog.setText("¿Estás seguro de que deseas eliminar a " + user.getName()
+                + " del proyecto? También se desvinculará de todas sus tareas en este proyecto.");
+        dialog.setCancelable(true);
+        dialog.setConfirmText("Eliminar");
+        dialog.setConfirmButtonTheme("error primary");
+        dialog.addConfirmListener(e -> {
+            taskService.unassignUserFromProjectTasks(user, currentProject);
+            user.setProject(null);
+            user.setResource(null);
+            userService.createOrUpdate(user);
+            updateUserList();
+            updateDirectorList();
+            Notification.show("Usuario desasignado del proyecto y de sus tareas");
+        });
+        dialog.open();
     }
 
     private void openAssignResourceDialog(User user) {

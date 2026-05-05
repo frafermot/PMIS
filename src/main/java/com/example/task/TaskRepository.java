@@ -24,4 +24,6 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
 
     @Query("SELECT t FROM Task t LEFT JOIN FETCH t.assignee a LEFT JOIN FETCH a.resource LEFT JOIN FETCH t.predecessor LEFT JOIN FETCH t.parentGroup WHERE t.predecessor = :predecessor")
     List<Task> findByPredecessor(@Param("predecessor") Task predecessor);
+
+    List<Task> findByProjectAndAssignee(Project project, User assignee);
 }
