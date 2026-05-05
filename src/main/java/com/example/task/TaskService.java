@@ -1,6 +1,7 @@
 package com.example.task;
 
 import com.example.project.Project;
+import com.example.user.User;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -387,6 +388,14 @@ public class TaskService {
             return workingDaysStr.contains(day.name());
         } catch (Exception e) {
             return true;
+        }
+    }
+    @Transactional
+    public void unassignUserFromProjectTasks(User user, Project project) {
+        List<Task> tasks = taskRepository.findByProjectAndAssignee(project, user);
+        for (Task t : tasks) {
+            t.setAssignee(null);
+            taskRepository.save(t);
         }
     }
 }
