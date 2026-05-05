@@ -126,7 +126,7 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
             return;
         }
 
-        this.isReadOnlyView = isSponsor && !isDirector && !isMember && !isAdmin;
+        this.isReadOnlyView = !isDirector && !isMember;
 
         // Collapse drawer automatically
         UI.getCurrent().getElement().executeJs("document.querySelector('vaadin-app-layout').drawerOpened = false");
@@ -197,8 +197,10 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
         // Menú de Configuración
         MenuItem config = menuBar.addItem(VaadinIcon.COG.create());
         config.add(" Configuración");
-        config.setVisible(!isReadOnlyView);
-        config.getSubMenu().addItem("Calendario Laboral", e -> openCalendarDialog());
+        
+        config.getSubMenu().addItem("Calendario Laboral", e -> openCalendarDialog())
+                .setVisible(!isReadOnlyView);
+        
         config.getSubMenu().addItem("Visibilidad de Columnas", e -> openColumnConfigDialog());
 
         String unitLabel = currentProject.getDurationUnit().equals("DAYS") ? "Cambiar a Horas" : "Cambiar a Días";
@@ -207,7 +209,7 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
             currentProject.setDurationUnit(newUnit);
             projectService.createOrUpdate(currentProject);
             refreshData();
-        });
+        }).setVisible(!isReadOnlyView);
 
         // Header and Actions in two rows for more space
         VerticalLayout topLayout = new VerticalLayout();
@@ -1092,6 +1094,10 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
             durationField.setValue(task.getDuration());
         }
         binder.readBean(task);
+        if (isReadOnlyView) {
+            binder.setReadOnly(true);
+            milestoneBox.setReadOnly(true);
+        }
 
         form.add(nameField, descField, startDateField, durationField, endDateField, assigneeBox, predecessorBox,
                 depTypeBox, milestoneBox);
@@ -1127,8 +1133,10 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
             }
         });
         saveBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        saveBtn.setVisible(!isReadOnlyView);
 
-        Button cancelBtn = new Button("Cancelar", e -> dialog.close());
+        Button cancelBtn = new Button("Cerrar", e -> dialog.close());
+        if (!isReadOnlyView) cancelBtn.setText("Cancelar");
 
         if (task.getId() != null && !task.getId().equals(-1L)) {
             Button deleteBtn = new Button("Eliminar", e -> {
@@ -1147,9 +1155,9 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
             });
             deleteBtn.addThemeVariants(ButtonVariant.LUMO_ERROR);
             deleteBtn.getStyle().set("margin-right", "auto"); // push other buttons to the right
+            deleteBtn.setVisible(!isReadOnlyView);
             dialog.getFooter().add(deleteBtn);
         }
-
         dialog.getFooter().add(cancelBtn, saveBtn);
         dialog.open();
     }
