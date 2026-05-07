@@ -22,7 +22,7 @@ public class TemplateService {
             }
             return resource.getContentAsString(StandardCharsets.UTF_8);
         } catch (IOException e) {
-            return "<p><em>Error loading template: " + e.getMessage() + "</em></p>";
+            return "<p><em>Error loading template: " + com.example.base.ui.MainErrorHandler.getPersonalizedMessage(e) + "</em></p>";
         }
     }
 }

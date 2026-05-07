@@ -192,7 +192,7 @@ public class PortfolioDetailView extends VerticalLayout implements HasUrlParamet
             portfolioService.createOrUpdate(currentPortfolio);
             Notification.show("Portfolio actualizado exitosamente");
         } catch (SecurityException ex) {
-            Notification.show("Error: " + ex.getMessage(), 5000, Notification.Position.MIDDLE);
+            Notification.show("Error: " + com.example.base.ui.MainErrorHandler.getPersonalizedMessage(ex), 5000, Notification.Position.MIDDLE);
         }
     }
 

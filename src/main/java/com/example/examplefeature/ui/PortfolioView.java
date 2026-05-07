@@ -129,7 +129,7 @@ public class PortfolioView extends VerticalLayout {
                         confirmDialog.close();
                         Notification.show("Portfolio, programas y proyectos eliminados exitosamente");
                     } catch (SecurityException ex) {
-                        Notification.show("Error: " + ex.getMessage(), 5000, Notification.Position.MIDDLE);
+                        Notification.show("Error: " + com.example.base.ui.MainErrorHandler.getPersonalizedMessage(ex), 5000, Notification.Position.MIDDLE);
                     }
                 });
                 confirmDeleteButton.getStyle().set("color", "red");
@@ -145,7 +145,7 @@ public class PortfolioView extends VerticalLayout {
                 Notification.show("Portfolio eliminado exitosamente");
             }
         } catch (SecurityException ex) {
-            Notification.show("Error: " + ex.getMessage(), 5000, Notification.Position.MIDDLE);
+            Notification.show("Error: " + com.example.base.ui.MainErrorHandler.getPersonalizedMessage(ex), 5000, Notification.Position.MIDDLE);
         }
     }
 
@@ -183,7 +183,7 @@ public class PortfolioView extends VerticalLayout {
                 dialog.close();
                 Notification.show("Portfolio guardado exitosamente");
             } catch (SecurityException ex) {
-                Notification.show("Error: " + ex.getMessage(), 5000, Notification.Position.MIDDLE);
+                Notification.show("Error: " + com.example.base.ui.MainErrorHandler.getPersonalizedMessage(ex), 5000, Notification.Position.MIDDLE);
             }
         });
 

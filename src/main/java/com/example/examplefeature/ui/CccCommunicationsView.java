@@ -144,7 +144,7 @@ public class CccCommunicationsView extends VerticalLayout implements HasUrlParam
                 dialog.close();
                 Notification.show("Comunicación creada exitosamente");
             } catch (Exception ex) {
-                Notification.show("Error al crear la comunicación: " + ex.getMessage());
+                Notification.show("Error al crear la comunicación: " + com.example.base.ui.MainErrorHandler.getPersonalizedMessage(ex));
             }
         });
         saveButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);

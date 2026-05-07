@@ -564,7 +564,7 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
             Document created = documentService.createDocument(currentProject.getId(), type);
             UI.getCurrent().navigate("document/" + created.getId());
         } catch (Exception ex) {
-            Notification.show("Error al crear el documento: " + ex.getMessage(), 5000, Notification.Position.MIDDLE);
+            Notification.show("Error al crear el documento: " + com.example.base.ui.MainErrorHandler.getPersonalizedMessage(ex), 5000, Notification.Position.MIDDLE);
         }
     }
 
@@ -820,7 +820,7 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
             downloadLink.getElement().executeJs("this.click()");
             UI.getCurrent().getPage().executeJs("setTimeout(function() { $0.remove(); }, 1000);", downloadLink.getElement());
         } catch (Exception ex) {
-            Notification.show("Error al generar el PDF: " + ex.getMessage(), 5000, Notification.Position.MIDDLE);
+            Notification.show("Error al generar el PDF: " + com.example.base.ui.MainErrorHandler.getPersonalizedMessage(ex), 5000, Notification.Position.MIDDLE);
         }
     }
 }
