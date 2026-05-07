@@ -1,6 +1,7 @@
 package com.example.user;
 
 import com.example.project.Project;
+import com.example.resource.Resource;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
@@ -34,6 +35,10 @@ public class User {
     @Column(name = "user_role", nullable = false)
     @NotNull
     private Role role = Role.USER;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "resource_id")
+    private Resource resource;
 
     public String getPassword() {
         return password;
@@ -81,6 +86,14 @@ public class User {
 
     public void setProject(Project project) {
         this.project = project;
+    }
+
+    public Resource getResource() {
+        return resource;
+    }
+
+    public void setResource(Resource resource) {
+        this.resource = resource;
     }
 
     @Override

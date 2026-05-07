@@ -6,8 +6,11 @@ import com.example.user.UserService;
 import com.example.user.Role;
 import com.example.security.PasswordGenerator;
 import com.example.security.SecurityService;
+import com.example.resource.Resource;
+import com.example.resource.ResourceService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.html.H2;
@@ -29,17 +32,19 @@ public class UserView extends VerticalLayout {
 
     private final UserService userService;
     private final SecurityService securityService;
+    private final ResourceService resourceService;
     private final Grid<User> grid = new Grid<>(User.class);
 
     private final PasswordEncoder passwordEncoder;
     private final PasswordGenerator passwordGenerator;
 
     public UserView(UserService userService, PasswordEncoder passwordEncoder, PasswordGenerator passwordGenerator,
-            SecurityService securityService) {
+            SecurityService securityService, ResourceService resourceService) {
         this.userService = userService;
         this.passwordEncoder = passwordEncoder;
         this.passwordGenerator = passwordGenerator;
         this.securityService = securityService;
+        this.resourceService = resourceService;
 
         setSizeFull();
         configureGrid();
@@ -56,6 +61,8 @@ public class UserView extends VerticalLayout {
         grid.addColumn(User::getUvus).setHeader("UVUS").setFlexGrow(1);
         grid.addColumn(user -> user.getProject() != null ? user.getProject().getName() : "Sin Proyecto")
                 .setHeader("Proyecto").setFlexGrow(1);
+        grid.addColumn(user -> user.getResource() != null ? user.getResource().getResourceType() + " - " + user.getResource().getProfessionalProfile() : "Sin Recurso")
+                .setHeader("Perfil de Recurso").setFlexGrow(1);
 
         grid.asSingleSelect().addValueChangeListener(event -> {
             if (event.getValue() != null) {
@@ -94,11 +101,28 @@ public class UserView extends VerticalLayout {
         projectField.setValue(user.getProject() != null ? user.getProject().getName() : "Sin Proyecto");
         projectField.setReadOnly(true);
 
-        VerticalLayout dialogLayout = new VerticalLayout(nameField, uvusField, projectField);
+        ComboBox<Resource> resourceComboBox = new ComboBox<>("Perfil de Recurso");
+        resourceComboBox.setItems(resourceService.findAll());
+        resourceComboBox.setItemLabelGenerator(r -> r.getResourceType() + " - " + r.getProfessionalProfile());
+        resourceComboBox.setValue(user.getResource());
+        resourceComboBox.setReadOnly(!securityService.isPmoDirector());
+
+        VerticalLayout dialogLayout = new VerticalLayout(nameField, uvusField, projectField, resourceComboBox);
         dialog.add(dialogLayout);
 
         Button closeButton = new Button("Cerrar", e -> dialog.close());
         dialog.getFooter().add(closeButton);
+
+        if (securityService.isPmoDirector()) {
+            Button saveButton = new Button("Guardar Cambios", e -> {
+                user.setResource(resourceComboBox.getValue());
+                userService.createOrUpdate(user);
+                updateList();
+                dialog.close();
+                Notification.show("Cambios guardados exitosamente");
+            });
+            dialog.getFooter().add(saveButton);
+        }
 
         // Only PMO Directors can delete Users (Role.USER)
         if (securityService.isPmoDirector()) {
@@ -118,7 +142,7 @@ public class UserView extends VerticalLayout {
                                 confirmDialog.close();
                                 Notification.show("Usuario eliminado y desasignado exitosamente");
                             } catch (SecurityException ex) {
-                                Notification.show("Error: " + ex.getMessage(), 5000, Notification.Position.MIDDLE);
+                                Notification.show("Error: " + com.example.base.ui.MainErrorHandler.getPersonalizedMessage(ex), 5000, Notification.Position.MIDDLE);
                             }
                         });
                         confirmDeleteButton.getStyle().set("color", "red");
@@ -135,7 +159,7 @@ public class UserView extends VerticalLayout {
                         Notification.show("Usuario eliminado exitosamente");
                     }
                 } catch (SecurityException ex) {
-                    Notification.show("Error: " + ex.getMessage(), 5000, Notification.Position.MIDDLE);
+                    Notification.show("Error: " + com.example.base.ui.MainErrorHandler.getPersonalizedMessage(ex), 5000, Notification.Position.MIDDLE);
                 }
             });
             deleteButton.getStyle().set("color", "red");
@@ -158,7 +182,11 @@ public class UserView extends VerticalLayout {
         TextField nameField = new TextField("Nombre");
         TextField uvusField = new TextField("UVUS");
 
-        VerticalLayout dialogLayout = new VerticalLayout(nameField, uvusField);
+        ComboBox<Resource> resourceComboBox = new ComboBox<>("Perfil de Recurso");
+        resourceComboBox.setItems(resourceService.findAll());
+        resourceComboBox.setItemLabelGenerator(r -> r.getResourceType() + " - " + r.getProfessionalProfile());
+
+        VerticalLayout dialogLayout = new VerticalLayout(nameField, uvusField, resourceComboBox);
         dialog.add(dialogLayout);
 
         Button saveButton = new Button("Guardar", e -> {
@@ -171,6 +199,7 @@ public class UserView extends VerticalLayout {
             newUser.setName(nameField.getValue());
             newUser.setUvus(uvusField.getValue());
             newUser.setRole(Role.USER); // Explicitly set Role.USER
+            newUser.setResource(resourceComboBox.getValue());
 
             String generatedPassword = passwordGenerator.generateStrongPassword();
             newUser.setPassword(passwordEncoder.encode(generatedPassword));

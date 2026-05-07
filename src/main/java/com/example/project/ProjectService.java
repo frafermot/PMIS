@@ -42,6 +42,12 @@ public class ProjectService {
             return projectRepository.save(project);
         }
 
+        // Allow Project Director to update the project (e.g. schedule dates)
+        if (currentUser != null && project.getDirector() != null
+                && project.getDirector().getId().equals(currentUser.getId())) {
+            return projectRepository.save(project);
+        }
+
         throw new SecurityException("No tienes permisos para realizar esta acción");
     }
 

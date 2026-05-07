@@ -160,7 +160,7 @@ public class CommunicationMessagesView extends VerticalLayout implements HasUrlP
                                 .addThemeVariants(NotificationVariant.LUMO_SUCCESS);
                     } catch (Exception e) {
                         statusSelect.setValue(event.getOldValue()); // Revert
-                        Notification.show("Error al actualizar estado: " + e.getMessage())
+                        Notification.show("Error al actualizar estado: " + com.example.base.ui.MainErrorHandler.getPersonalizedMessage(e))
                                 .addThemeVariants(NotificationVariant.LUMO_ERROR);
                     }
                 }
@@ -258,7 +258,7 @@ public class CommunicationMessagesView extends VerticalLayout implements HasUrlP
             UI.getCurrent().getPage().executeJs("var scroller = $0; scroller.scrollTo(0, scroller.scrollHeight);",
                     messageScroller.getElement());
         } catch (Exception e) {
-            Notification.show("Error al enviar mensaje: " + e.getMessage());
+            Notification.show("Error al enviar mensaje: " + com.example.base.ui.MainErrorHandler.getPersonalizedMessage(e));
         }
     }
 

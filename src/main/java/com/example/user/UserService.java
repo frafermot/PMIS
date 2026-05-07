@@ -49,20 +49,26 @@ public class UserService {
             return userRepository.save(user);
         }
 
-        // Project Directors can assign users to their project
-        // This effectively means updating a User to set their project
-        if (user.getId() != null && user.getProject() != null) {
-            if (securityService.isProjectDirector(user.getProject().getId())) {
-                // Must be USER
-                User existing = userRepository.findById(user.getId()).orElse(null);
-                if (existing != null && existing.getRole() == Role.USER) {
-                    // Allow only if role remains USER (implicit in object passed, but we should be
-                    // careful)
-                    if (user.getRole() != Role.USER) {
-                        throw new SecurityException("No puedes cambiar el rol del usuario");
+        // Project Directors can manage users in their project
+        if (user.getId() != null) {
+            User existing = userRepository.findById(user.getId()).orElse(null);
+            if (existing != null && existing.getRole() == Role.USER && existing.getProject() != null) {
+                if (securityService.isProjectDirector(existing.getProject().getId())) {
+                    // Allow if moving to null project OR staying in same project
+                    if (user.getProject() == null || user.getProject().getId().equals(existing.getProject().getId())) {
+                        if (user.getRole() != Role.USER) {
+                            throw new SecurityException("No puedes cambiar el rol del usuario");
+                        }
+                        return userRepository.save(user);
                     }
-                    return userRepository.save(user);
                 }
+            }
+            // Also allow if the user is being ASSIGNED to the director's project
+            if (user.getProject() != null && securityService.isProjectDirector(user.getProject().getId())) {
+                if (user.getRole() != Role.USER) {
+                    throw new SecurityException("No puedes cambiar el rol del usuario");
+                }
+                return userRepository.save(user);
             }
         }
 
@@ -102,7 +108,7 @@ public class UserService {
     }
 
     public List<User> getAll() {
-        List<User> users = userRepository.findAllWithProject();
+        List<User> users = userRepository.findAllWithProjectAndResource();
         return users;
     }
 
@@ -116,7 +122,7 @@ public class UserService {
 
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public List<User> findAvailableForProject(Long projectId) {
-        return userRepository.findAllWithProject().stream()
+        return userRepository.findAllWithProjectAndResource().stream()
                 .filter(user -> user.getProject() == null ||
                         (projectId != null && !user.getProject().getId().equals(projectId)))
                 .toList();
@@ -127,7 +133,7 @@ public class UserService {
         if (projectId == null) {
             return List.of();
         }
-        return userRepository.findAllWithProject().stream()
+        return userRepository.findAllWithProjectAndResource().stream()
                 .filter(user -> user.getProject() != null && user.getProject().getId().equals(projectId))
                 .toList();
     }

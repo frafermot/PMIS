@@ -6,6 +6,7 @@ import com.example.communication.Ccc;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "project")
@@ -36,6 +37,67 @@ public class Project {
 
     @OneToOne(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
     private Ccc ccc;
+
+    @Column(name = "start_date")
+    private LocalDate startDate;
+
+    @Column(name = "end_date")
+    private LocalDate endDate;
+
+    @Column(name = "working_days")
+    private String workingDays = "MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY";
+
+    @Column(name = "work_start_hour")
+    private java.time.LocalTime workStartHour = java.time.LocalTime.of(9, 0);
+
+    @Column(name = "work_end_hour")
+    private java.time.LocalTime workEndHour = java.time.LocalTime.of(18, 0);
+
+    @Column(name = "duration_unit")
+    private String durationUnit = "HOURS"; // "DAYS" or "HOURS"
+
+    @Column(name = "visible_columns", length = 500)
+    private String visibleColumns = "EDT,Nombre,Pred.,Responsable,Inicio,Fin,Duración,Coste";
+
+    public String getVisibleColumns() {
+        return visibleColumns;
+    }
+
+    public void setVisibleColumns(String visibleColumns) {
+        this.visibleColumns = visibleColumns;
+    }
+
+    public String getDurationUnit() {
+        return durationUnit;
+    }
+
+    public void setDurationUnit(String durationUnit) {
+        this.durationUnit = durationUnit;
+    }
+
+    public String getWorkingDays() {
+        return workingDays;
+    }
+
+    public void setWorkingDays(String workingDays) {
+        this.workingDays = workingDays;
+    }
+
+    public java.time.LocalTime getWorkStartHour() {
+        return workStartHour;
+    }
+
+    public void setWorkStartHour(java.time.LocalTime workStartHour) {
+        this.workStartHour = workStartHour;
+    }
+
+    public java.time.LocalTime getWorkEndHour() {
+        return workEndHour;
+    }
+
+    public void setWorkEndHour(java.time.LocalTime workEndHour) {
+        this.workEndHour = workEndHour;
+    }
 
     public Long getId() {
         return id;
@@ -86,6 +148,22 @@ public class Project {
         if (ccc != null && ccc.getProject() != this) {
             ccc.setProject(this);
         }
+    }
+
+    public LocalDate getStartDate() {
+        return startDate;
+    }
+
+    public void setStartDate(LocalDate startDate) {
+        this.startDate = startDate;
+    }
+
+    public LocalDate getEndDate() {
+        return endDate;
+    }
+
+    public void setEndDate(LocalDate endDate) {
+        this.endDate = endDate;
     }
 
     @Override
