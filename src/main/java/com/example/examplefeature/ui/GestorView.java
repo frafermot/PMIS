@@ -134,7 +134,7 @@ public class GestorView extends VerticalLayout {
                             confirmDialog.close();
                             Notification.show("Gestor eliminado y desasignado exitosamente");
                         } catch (SecurityException ex) {
-                            Notification.show("Error: " + ex.getMessage(), 5000, Notification.Position.MIDDLE);
+                            Notification.show("Error: " + com.example.base.ui.MainErrorHandler.getPersonalizedMessage(ex), 5000, Notification.Position.MIDDLE);
                         }
                     });
                     confirmDeleteButton.getStyle().set("color", "red");
@@ -151,7 +151,7 @@ public class GestorView extends VerticalLayout {
                     Notification.show("Gestor eliminado exitosamente");
                 }
             } catch (SecurityException ex) {
-                Notification.show("Error: " + ex.getMessage(), 5000, Notification.Position.MIDDLE);
+                Notification.show("Error: " + com.example.base.ui.MainErrorHandler.getPersonalizedMessage(ex), 5000, Notification.Position.MIDDLE);
             }
         });
         deleteButton.getStyle().set("color", "red");

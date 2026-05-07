@@ -15,6 +15,8 @@ import com.example.portfolio.PortfolioService;
 import com.example.pmo.PMOService;
 import com.example.program.ProgramService;
 import com.example.project.ProjectService;
+import com.example.resource.Resource;
+import com.example.resource.ResourceService;
 
 import com.example.document.DocumentService;
 
@@ -28,11 +30,13 @@ public class DataInitializer implements CommandLineRunner {
     private final UserService userService;
     private final PasswordEncoder passwordEncoder;
     private final DocumentService documentService;
+    private final ResourceService resourceService;
 
     public DataInitializer(
             PortfolioService portfolioService, PMOService pmoService,
             ProgramService programService, ProjectService projectService, UserService userService,
-            PasswordEncoder passwordEncoder, DocumentService documentService) {
+            PasswordEncoder passwordEncoder, DocumentService documentService,
+            ResourceService resourceService) {
         this.portfolioService = portfolioService;
         this.pmoService = pmoService;
         this.programService = programService;
@@ -40,6 +44,7 @@ public class DataInitializer implements CommandLineRunner {
         this.userService = userService;
         this.passwordEncoder = passwordEncoder;
         this.documentService = documentService;
+        this.resourceService = resourceService;
     }
 
     @Override
@@ -150,5 +155,24 @@ public class DataInitializer implements CommandLineRunner {
         testUser.setRole(Role.USER);
         testUser.setPassword(passwordEncoder.encode("test"));
         userService.createOrUpdate(testUser);
+
+        // Create PMO Resources
+        Resource r1 = new Resource();
+        r1.setResourceType("Junior");
+        r1.setProfessionalProfile("Programador");
+        r1.setCostPerHour(25.0);
+        resourceService.save(r1);
+
+        Resource r2 = new Resource();
+        r2.setResourceType("Senior");
+        r2.setProfessionalProfile("Analista Programador");
+        r2.setCostPerHour(45.0);
+        resourceService.save(r2);
+
+        Resource r3 = new Resource();
+        r3.setResourceType("Gestor");
+        r3.setProfessionalProfile("Project Manager");
+        r3.setCostPerHour(70.0);
+        resourceService.save(r3);
     }
 }

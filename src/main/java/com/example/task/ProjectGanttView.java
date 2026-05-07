@@ -323,7 +323,7 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
                                         taskService.saveTask(task);
                                         refreshData();
                                     } catch (IllegalStateException ex) {
-                                        Notification.show(ex.getMessage(), 5000, Notification.Position.MIDDLE)
+                                        Notification.show(com.example.base.ui.MainErrorHandler.getPersonalizedMessage(ex), 5000, Notification.Position.MIDDLE)
                                                 .addThemeVariants(NotificationVariant.LUMO_ERROR);
                                         task.setPredecessor(null);
                                         predField.setValue(e.getOldValue() != null ? e.getOldValue() : "");
@@ -1125,11 +1125,11 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
                             .addThemeVariants(NotificationVariant.LUMO_WARNING);
                 }
             } catch (IllegalStateException ex) {
-                Notification error = new Notification(ex.getMessage(), 5000, Notification.Position.MIDDLE);
+                Notification error = new Notification(com.example.base.ui.MainErrorHandler.getPersonalizedMessage(ex), 5000, Notification.Position.MIDDLE);
                 error.addThemeVariants(NotificationVariant.LUMO_ERROR);
                 error.open();
             } catch (Exception ex) {
-                Notification.show("Error: " + ex.getMessage());
+                Notification.show("Error: " + com.example.base.ui.MainErrorHandler.getPersonalizedMessage(ex));
             }
         });
         saveBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);

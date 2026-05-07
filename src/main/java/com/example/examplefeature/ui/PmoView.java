@@ -122,7 +122,7 @@ public class PmoView extends VerticalLayout {
                 dialog.close();
                 Notification.show("PMO guardada exitosamente");
             } catch (SecurityException ex) {
-                Notification.show("Error: " + ex.getMessage(), 5000, Notification.Position.MIDDLE);
+                Notification.show("Error: " + com.example.base.ui.MainErrorHandler.getPersonalizedMessage(ex), 5000, Notification.Position.MIDDLE);
             }
         });
 
@@ -136,7 +136,7 @@ public class PmoView extends VerticalLayout {
                     dialog.close();
                     Notification.show("PMO eliminada exitosamente");
                 } catch (SecurityException ex) {
-                    Notification.show("Error: " + ex.getMessage(), 5000, Notification.Position.MIDDLE);
+                    Notification.show("Error: " + com.example.base.ui.MainErrorHandler.getPersonalizedMessage(ex), 5000, Notification.Position.MIDDLE);
                 }
             }
         });

@@ -248,7 +248,7 @@ public class DocumentEditorView extends VerticalLayout implements BeforeEnterObs
                             && e.getCause().getCause() instanceof ObjectOptimisticLockingFailureException)) {
                 handleOptimisticLockingFailure();
             } else {
-                Notification.show("Error al guardar el documento: " + e.getMessage(),
+                Notification.show("Error al guardar el documento: " + com.example.base.ui.MainErrorHandler.getPersonalizedMessage(e),
                         5000, Notification.Position.MIDDLE);
             }
         }
@@ -348,7 +348,7 @@ public class DocumentEditorView extends VerticalLayout implements BeforeEnterObs
                 versionSelector.clear();
                 loadDocument();
             } catch (Exception ex) {
-                Notification.show("Error al restaurar la versión: " + ex.getMessage(),
+                Notification.show("Error al restaurar la versión: " + com.example.base.ui.MainErrorHandler.getPersonalizedMessage(ex),
                         5000, Notification.Position.MIDDLE);
             }
         }
@@ -361,7 +361,7 @@ public class DocumentEditorView extends VerticalLayout implements BeforeEnterObs
             currentDocument = documentService.createOrUpdate(currentDocument);
             Notification.show("Valoración guardada");
         } catch (Exception e) {
-            Notification.show("Error al guardar la valoración: " + e.getMessage(),
+            Notification.show("Error al guardar la valoración: " + com.example.base.ui.MainErrorHandler.getPersonalizedMessage(e),
                     5000, Notification.Position.MIDDLE);
         }
     }
