@@ -12,6 +12,7 @@ public enum DocumentType {
     PLAN_COMUNICACIONES("Plan de Comunicaciones", "planificacion", "plan-de-comunicaciones"),
     REGISTRO_RIESGOS("Registro de Riesgos", "planificacion", "registro-de-riesgos"),
     PLAN_CALIDAD("Plan de Calidad", "planificacion", "plan-de-calidad"),
+    REGISTRO_ACTIVIDADES("Registro de Actividades", "planificacion", "registro-de-actividades"),
 
     // ── EJECUCIÓN ────────────────────────────────────────────────────────────
     INFORME_ESTADO("Informe de Estado", "ejecucion", "informe-de-estado"),

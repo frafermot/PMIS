@@ -4,6 +4,8 @@ import com.example.project.Project;
 import com.example.security.SecurityService;
 import com.example.user.User;
 import com.example.user.UserService;
+import com.example.task.Task;
+import com.example.task.TaskRepository;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,17 +27,20 @@ public class DocumentService {
     private final SecurityService securityService;
     private final UserService userService;
     private final TemplateService templateService;
+    private final TaskRepository taskRepository;
 
     public DocumentService(DocumentRepository documentRepository,
             DocumentVersionRepository documentVersionRepository,
             SecurityService securityService,
             UserService userService,
-            TemplateService templateService) {
+            TemplateService templateService,
+            TaskRepository taskRepository) {
         this.documentRepository = documentRepository;
         this.documentVersionRepository = documentVersionRepository;
         this.securityService = securityService;
         this.userService = userService;
         this.templateService = templateService;
+        this.taskRepository = taskRepository;
     }
 
     /**
@@ -78,6 +83,16 @@ public class DocumentService {
         }
 
         String template = templateService.loadTemplate(type);
+        
+        // Autorellenar metadatos del proyecto
+        template = DocumentHtmlHelper.fillProjectMetadata(template, doc.getProject());
+        
+        // Si es el registro de actividades, precargar la lista actual de tareas
+        if (type == DocumentType.REGISTRO_ACTIVIDADES) {
+            List<Task> tasks = taskRepository.findByProjectOrderByStartDateAsc(doc.getProject());
+            template = DocumentHtmlHelper.updateActivitiesTableInHtml(template, tasks);
+        }
+
         doc.setContent(template);
         doc.setStatus(DocumentStatus.EN_PROCESO);
         doc.setUpdatedAt(LocalDateTime.now());

@@ -2,6 +2,11 @@ package com.example.task;
 
 import com.example.project.Project;
 import com.example.user.User;
+import com.example.document.DocumentRepository;
+import com.example.document.Document;
+import com.example.document.DocumentType;
+import com.example.document.DocumentStatus;
+import com.example.document.DocumentHtmlHelper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,13 +25,16 @@ public class TaskService {
     private final TaskRepository taskRepository;
     private final ProjectBaselineRepository projectBaselineRepository;
     private final TaskBaselineRepository taskBaselineRepository;
+    private final DocumentRepository documentRepository;
 
     public TaskService(TaskRepository taskRepository, 
                        ProjectBaselineRepository projectBaselineRepository,
-                       TaskBaselineRepository taskBaselineRepository) {
+                       TaskBaselineRepository taskBaselineRepository,
+                       DocumentRepository documentRepository) {
         this.taskRepository = taskRepository;
         this.projectBaselineRepository = projectBaselineRepository;
         this.taskBaselineRepository = taskBaselineRepository;
+        this.documentRepository = documentRepository;
     }
 
     public List<Task> getTasksByProject(Project project) {
@@ -47,7 +55,9 @@ public class TaskService {
 
     @Transactional
     public Task saveTask(Task task) {
-        return saveTaskInternal(task, new java.util.HashSet<>());
+        Task saved = saveTaskInternal(task, new java.util.HashSet<>());
+        syncActivitiesDocument(saved.getProject());
+        return saved;
     }
 
     private Task saveTaskInternal(Task task, java.util.Set<Long> updatedTaskIds) {
@@ -99,6 +109,7 @@ public class TaskService {
         }
 
         updateGroupDates(savedGroup);
+        syncActivitiesDocument(project);
         return savedGroup;
     }
 
@@ -124,6 +135,7 @@ public class TaskService {
 
     @Transactional
     public void deleteTask(Task task) {
+        Project project = task.getProject();
         // First detach any successors
         List<Task> successors = taskRepository.findByPredecessor(task);
         for (Task successor : successors) {
@@ -132,6 +144,7 @@ public class TaskService {
             taskRepository.save(successor);
         }
         taskRepository.delete(task);
+        syncActivitiesDocument(project);
     }
 
     private void validateAssigneeAvailability(Task task) {
@@ -282,6 +295,7 @@ public class TaskService {
             assignWBSChildren(t, code, allTasks);
             counter++;
         }
+        syncActivitiesDocument(project);
     }
 
     private void assignWBSChildren(Task parent, String parentCode, List<Task> allTasks) {
@@ -396,6 +410,27 @@ public class TaskService {
         for (Task t : tasks) {
             t.setAssignee(null);
             taskRepository.save(t);
+        }
+    }
+
+    private void syncActivitiesDocument(Project project) {
+        if (project == null || project.getId() == null) return;
+        try {
+            documentRepository.findByProjectIdAndType(project.getId(), DocumentType.REGISTRO_ACTIVIDADES)
+                .ifPresent(doc -> {
+                    if (doc.getStatus() == DocumentStatus.EN_PROCESO) {
+                        List<Task> tasks = taskRepository.findByProjectOrderByStartDateAsc(project);
+                        String updatedHtml = DocumentHtmlHelper.updateActivitiesTableInHtml(doc.getContent(), tasks);
+                        if (!updatedHtml.equals(doc.getContent())) {
+                            doc.setContent(updatedHtml);
+                            doc.setUpdatedAt(LocalDateTime.now());
+                            documentRepository.save(doc);
+                        }
+                    }
+                });
+        } catch (Exception e) {
+            // Log exception to avoid breaking the core task operations
+            e.printStackTrace();
         }
     }
 }
