@@ -2,6 +2,11 @@ package com.example.task;
 
 import com.example.project.Project;
 import com.example.user.User;
+import com.example.document.DocumentRepository;
+import com.example.document.Document;
+import com.example.document.DocumentType;
+import com.example.document.DocumentStatus;
+import com.example.document.DocumentHtmlHelper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,13 +25,19 @@ public class TaskService {
     private final TaskRepository taskRepository;
     private final ProjectBaselineRepository projectBaselineRepository;
     private final TaskBaselineRepository taskBaselineRepository;
+    private final DocumentRepository documentRepository;
+    
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager entityManager;
 
     public TaskService(TaskRepository taskRepository, 
                        ProjectBaselineRepository projectBaselineRepository,
-                       TaskBaselineRepository taskBaselineRepository) {
+                       TaskBaselineRepository taskBaselineRepository,
+                       DocumentRepository documentRepository) {
         this.taskRepository = taskRepository;
         this.projectBaselineRepository = projectBaselineRepository;
         this.taskBaselineRepository = taskBaselineRepository;
+        this.documentRepository = documentRepository;
     }
 
     public List<Task> getTasksByProject(Project project) {
@@ -47,12 +58,21 @@ public class TaskService {
 
     @Transactional
     public Task saveTask(Task task) {
-        return saveTaskInternal(task, new java.util.HashSet<>());
+        Task saved = saveTaskInternal(task, new java.util.HashSet<>());
+        taskRepository.flush(); // Flush before syncing to avoid Hibernate AssertionError
+        entityManager.clear(); // Clear persistence context to avoid claimEntityHolderIfPossible bug
+        syncProjectTasksToDocuments(saved.getProject());
+        return saved;
     }
 
     private Task saveTaskInternal(Task task, java.util.Set<Long> updatedTaskIds) {
         if (task.getId() != null && updatedTaskIds.contains(task.getId())) {
             return task;
+        }
+
+        // Attach detached entities to current session to avoid LazyInitializationException
+        if (task.getId() != null) {
+            task = entityManager.merge(task);
         }
 
         if (isCircularDependency(task, task.getPredecessor())) {
@@ -99,6 +119,9 @@ public class TaskService {
         }
 
         updateGroupDates(savedGroup);
+        taskRepository.flush();
+        entityManager.clear();
+        syncProjectTasksToDocuments(project);
         return savedGroup;
     }
 
@@ -124,6 +147,7 @@ public class TaskService {
 
     @Transactional
     public void deleteTask(Task task) {
+        Project project = task.getProject();
         // First detach any successors
         List<Task> successors = taskRepository.findByPredecessor(task);
         for (Task successor : successors) {
@@ -132,6 +156,9 @@ public class TaskService {
             taskRepository.save(successor);
         }
         taskRepository.delete(task);
+        taskRepository.flush();
+        entityManager.clear();
+        syncProjectTasksToDocuments(project);
     }
 
     private void validateAssigneeAvailability(Task task) {
@@ -282,6 +309,9 @@ public class TaskService {
             assignWBSChildren(t, code, allTasks);
             counter++;
         }
+        taskRepository.flush();
+        entityManager.clear();
+        syncProjectTasksToDocuments(project);
     }
 
     private void assignWBSChildren(Task parent, String parentCode, List<Task> allTasks) {
@@ -396,6 +426,49 @@ public class TaskService {
         for (Task t : tasks) {
             t.setAssignee(null);
             taskRepository.save(t);
+        }
+    }
+
+    private void syncProjectTasksToDocuments(Project project) {
+        if (project == null || project.getId() == null) return;
+        try {
+            List<Task> allTasks = taskRepository.findByProjectOrderByStartDateAsc(project);
+
+            // Sync Lista de Actividades
+            Document listaDoc = documentRepository.findFirstByProjectIdAndTypeOrderByIdDesc(project.getId(), DocumentType.LISTA_ACTIVIDADES).orElse(null);
+            if (listaDoc != null && listaDoc.getStatus() == DocumentStatus.EN_PROCESO) {
+                String updatedHtml = DocumentHtmlHelper.updateActivitiesTableInHtml(listaDoc.getContent(), allTasks);
+                if (!updatedHtml.equals(listaDoc.getContent())) {
+                    listaDoc.setContent(updatedHtml);
+                    listaDoc.setUpdatedAt(LocalDateTime.now());
+                    documentRepository.save(listaDoc);
+                }
+            }
+
+            // Sync Lista de Hitos
+            Document hitosDoc = documentRepository.findFirstByProjectIdAndTypeOrderByIdDesc(project.getId(), DocumentType.LISTA_HITOS).orElse(null);
+            if (hitosDoc != null && hitosDoc.getStatus() == DocumentStatus.EN_PROCESO) {
+                String updatedHtml = DocumentHtmlHelper.updateMilestonesTableInHtml(hitosDoc.getContent(), allTasks);
+                if (!updatedHtml.equals(hitosDoc.getContent())) {
+                    hitosDoc.setContent(updatedHtml);
+                    hitosDoc.setUpdatedAt(LocalDateTime.now());
+                    documentRepository.save(hitosDoc);
+                }
+            }
+
+            // Sync Diccionario EDT
+            Document diccDoc = documentRepository.findFirstByProjectIdAndTypeOrderByIdDesc(project.getId(), DocumentType.DICCIONARIO_EDT).orElse(null);
+            if (diccDoc != null && diccDoc.getStatus() == DocumentStatus.EN_PROCESO) {
+                String updatedHtml = DocumentHtmlHelper.updateWbsDictionaryTableInHtml(diccDoc.getContent(), allTasks);
+                if (!updatedHtml.equals(diccDoc.getContent())) {
+                    diccDoc.setContent(updatedHtml);
+                    diccDoc.setUpdatedAt(LocalDateTime.now());
+                    documentRepository.save(diccDoc);
+                }
+            }
+        } catch (Exception e) {
+            // Log exception to avoid breaking the core task operations
+            e.printStackTrace();
         }
     }
 }

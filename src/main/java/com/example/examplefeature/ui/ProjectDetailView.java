@@ -406,7 +406,7 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
 
     private void renderDocView() {
         docViewContainer.removeAll();
-        Map<DocumentType, Document> docMap = documentService.getProjectDocumentMap(currentProject.getId());
+        Map<DocumentType, List<Document>> docMap = documentService.getProjectDocumentMap(currentProject.getId());
 
         if (viewByPhase) {
             renderByPhase(docMap);
@@ -417,26 +417,53 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
 
     // ── VIEW: By Phase ────────────────────────────────────────────────────────
 
-    private void renderByPhase(Map<DocumentType, Document> docMap) {
-        String[] phases = { "inicio", "planificacion", "ejecucion", "cierre" };
-        for (String phase : phases) {
-            List<DocumentType> typesInPhase = Arrays.stream(DocumentType.values())
-                    .filter(t -> t.getPhase().equals(phase))
+    private void renderByPhase(Map<DocumentType, List<Document>> docMap) {
+        List<String> topLevelPhases = Arrays.stream(DocumentType.values())
+                .map(t -> t.getProcessGroup().split(" - ")[0])
+                .distinct()
+                .collect(Collectors.toList());
+
+        for (String topLevelPhase : topLevelPhases) {
+            List<String> subGroups = Arrays.stream(DocumentType.values())
+                    .map(DocumentType::getProcessGroup)
+                    .filter(g -> g.startsWith(topLevelPhase))
+                    .distinct()
                     .collect(Collectors.toList());
 
-            String phaseLabel = typesInPhase.get(0).getPhaseLabel();
-            VerticalLayout phaseContent = buildDocGrid(typesInPhase, docMap);
+            VerticalLayout topLevelContent = new VerticalLayout();
+            topLevelContent.setPadding(false);
+            topLevelContent.setSpacing(true);
 
-            Details phaseDetails = new Details(phaseLabel, phaseContent);
-            phaseDetails.setOpened(true);
-            phaseDetails.setWidthFull();
-            docViewContainer.add(phaseDetails);
+            for (String subGroup : subGroups) {
+                List<DocumentType> typesInGroup = Arrays.stream(DocumentType.values())
+                        .filter(t -> t.getProcessGroup().equals(subGroup))
+                        .collect(Collectors.toList());
+
+                VerticalLayout groupContent = buildDocGrid(typesInGroup, docMap);
+
+                if (subGroup.equals(topLevelPhase)) {
+                    // No sub-folder, add grid directly to the top-level phase
+                    topLevelContent.add(groupContent);
+                } else {
+                    // Nested dropdown for the sub-folder (e.g. "A. Integración")
+                    String subFolderName = subGroup.substring(topLevelPhase.length() + 3);
+                    Details subDetails = new Details(subFolderName, groupContent);
+                    subDetails.setOpened(false);
+                    subDetails.setWidthFull();
+                    topLevelContent.add(subDetails);
+                }
+            }
+
+            Details topLevelDetails = new Details(topLevelPhase, topLevelContent);
+            topLevelDetails.setOpened(false);
+            topLevelDetails.setWidthFull();
+            docViewContainer.add(topLevelDetails);
         }
     }
 
     // ── VIEW: By Document (flat grid ordered alphabetically) ──────────────────
 
-    private void renderByDocument(Map<DocumentType, Document> docMap) {
+    private void renderByDocument(Map<DocumentType, List<Document>> docMap) {
         List<DocumentType> allTypes = Arrays.stream(DocumentType.values())
                 .sorted((a, b) -> a.getLabel().compareToIgnoreCase(b.getLabel()))
                 .collect(Collectors.toList());
@@ -450,25 +477,36 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
     private record DocRow(DocumentType type, Document document) {
     }
 
-    private VerticalLayout buildDocGrid(List<DocumentType> types, Map<DocumentType, Document> docMap) {
-        List<DocRow> rows = types.stream()
-                .map(t -> new DocRow(t, docMap.get(t)))
-                .collect(Collectors.toList());
+    private VerticalLayout buildDocGrid(List<DocumentType> types, Map<DocumentType, List<Document>> docMap) {
+        List<DocRow> rows = new ArrayList<>();
+        for (DocumentType t : types) {
+            List<Document> docs = docMap.getOrDefault(t, Collections.emptyList());
+            if (docs.isEmpty()) {
+                rows.add(new DocRow(t, null));
+            } else {
+                for (Document d : docs) {
+                    rows.add(new DocRow(t, d));
+                }
+            }
+        }
 
         Grid<DocRow> grid = new Grid<>();
         grid.setWidthFull();
         grid.setAllRowsVisible(true);
 
         // Document name column
-        grid.addColumn(r -> r.type().getLabel())
-                .setHeader("Documento")
-                .setFlexGrow(2);
+        grid.addColumn(r -> {
+            if (r.type().isMultiple() && r.document() != null && r.document().getStatus() != DocumentStatus.POR_CREAR) {
+                return r.type().getLabel() + " (" + r.document().getUpdatedAt().toLocalDate().toString() + ")";
+            }
+            return r.type().getLabel();
+        }).setHeader("Documento").setFlexGrow(2);
 
         // Phase column (useful in the "by document" flat view)
         if (!viewByPhase) {
             grid.addColumn(r -> r.type().getPhaseLabel())
-                    .setHeader("Fase")
-                    .setWidth("130px")
+                    .setHeader("Fase/Proceso")
+                    .setWidth("250px")
                     .setFlexGrow(0);
         }
 
@@ -791,14 +829,24 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
 
             StringBuilder sb = new StringBuilder();
             sb.append("<html><head><meta charset='UTF-8'/><style>");
+            sb.append("@page { size: A4; margin: 15mm; margin-bottom: 25mm; @bottom-center { content: element(footer); } }");
+            sb.append("#pdf-footer { position: running(footer); width: 100%; }");
             sb.append("body { font-family: 'Helvetica', sans-serif; font-size: 11pt; line-height: 1.5; color: #333; }");
             sb.append("h1 { color: #2c3e50; text-align: center; margin-bottom: 20px; }");
-            sb.append("table { width: 100%; border-collapse: collapse; margin-top: 20px; table-layout: fixed; word-wrap: break-word; }");
+            sb.append("table { width: 100%; border-collapse: collapse; margin-top: 20px; table-layout: fixed; word-wrap: break-word; -fs-table-paginate: paginate; }");
             sb.append("th, td { border: 1px solid #dee2e6; padding: 12px; text-align: left; vertical-align: top; }");
             sb.append("th { background-color: #f8f9fa; font-weight: bold; color: #495057; border-bottom: 2px solid #dee2e6; }");
             sb.append("tr:nth-child(even) { background-color: #fcfcfc; }");
+            sb.append("table, tr, td, th, .wbs-card-template { page-break-inside: avoid !important; break-inside: avoid !important; }");
             sb.append("img { max-width: 100%; height: auto; }");
             sb.append("</style></head><body>");
+            sb.append("<div id='pdf-footer'>");
+            sb.append("    <div style='clear:both;'>");
+            sb.append("        <p style='margin-top:0pt; margin-bottom:0pt; text-align:right; line-height:normal; background-color:#17365d; padding: 2px 10px;'>");
+            sb.append("            <span style='font-family:\"Copperplate Gothic Bold\"; color:#ffffff;'>PGPI</span>");
+            sb.append("        </p>");
+            sb.append("    </div>");
+            sb.append("</div>");
             sb.append("<h1>").append(document.getType().getLabel()).append("</h1>");
             sb.append("<div style='text-align: right; font-size: 0.9em; color: #7f8c8d; margin-bottom: 20px;'>");
             sb.append("Proyecto: ").append(currentProject.getName()).append("<br/>");

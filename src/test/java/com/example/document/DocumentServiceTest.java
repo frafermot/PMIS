@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
+import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -105,11 +106,13 @@ class DocumentServiceTest {
         setupSecurityContext(director);
         documentService.initDocumentsForProject(project);
 
-        Map<DocumentType, Document> docMap = documentService.getProjectDocumentMap(project.getId());
+        Map<DocumentType, List<Document>> docMap = documentService.getProjectDocumentMap(project.getId());
         assertNotNull(docMap);
         
-        Document acta = docMap.get(DocumentType.ACTA_CONSTITUCION);
-        assertNotNull(acta);
+        List<Document> actas = docMap.get(DocumentType.ACTA_CONSTITUCION);
+        assertNotNull(actas);
+        assertTrue(!actas.isEmpty());
+        Document acta = actas.get(0);
         assertEquals(DocumentStatus.POR_CREAR, acta.getStatus());
         assertEquals(project.getId(), acta.getProject().getId());
     }

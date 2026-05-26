@@ -4,6 +4,8 @@ import com.example.project.Project;
 import com.example.security.SecurityService;
 import com.example.user.User;
 import com.example.user.UserService;
+import com.example.task.Task;
+import com.example.task.TaskRepository;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,17 +27,20 @@ public class DocumentService {
     private final SecurityService securityService;
     private final UserService userService;
     private final TemplateService templateService;
+    private final TaskRepository taskRepository;
 
     public DocumentService(DocumentRepository documentRepository,
             DocumentVersionRepository documentVersionRepository,
             SecurityService securityService,
             UserService userService,
-            TemplateService templateService) {
+            TemplateService templateService,
+            TaskRepository taskRepository) {
         this.documentRepository = documentRepository;
         this.documentVersionRepository = documentVersionRepository;
         this.securityService = securityService;
         this.userService = userService;
         this.templateService = templateService;
+        this.taskRepository = taskRepository;
     }
 
     /**
@@ -44,10 +49,12 @@ public class DocumentService {
      */
     public void initDocumentsForProject(Project project) {
         for (DocumentType type : DocumentType.values()) {
-            boolean exists = documentRepository
-                    .findByProjectIdAndType(project.getId(), type)
-                    .isPresent();
-            if (!exists) {
+            boolean hasPorCrear = documentRepository.existsByProjectIdAndTypeAndStatus(project.getId(), type, DocumentStatus.POR_CREAR);
+            if (!hasPorCrear) {
+                if (!type.isMultiple()) {
+                    boolean exists = documentRepository.findFirstByProjectIdAndTypeOrderByIdDesc(project.getId(), type).isPresent();
+                    if (exists) continue;
+                }
                 Document doc = new Document();
                 doc.setTitle(type.getLabel());
                 doc.setType(type);
@@ -70,19 +77,44 @@ public class DocumentService {
             throw new SecurityException("No tiene permiso para crear documentos en este proyecto");
         }
 
-        Document doc = documentRepository.findByProjectIdAndType(projectId, type)
-                .orElseThrow(() -> new IllegalStateException("Documento no encontrado para tipo: " + type));
+        Document doc = documentRepository.findFirstByProjectIdAndTypeOrderByIdDesc(projectId, type)
+                .filter(d -> d.getStatus() == DocumentStatus.POR_CREAR)
+                .orElseThrow(() -> new IllegalStateException("Documento no encontrado o ya creado para tipo: " + type));
 
         if (doc.getStatus() != DocumentStatus.POR_CREAR) {
             throw new IllegalStateException("El documento ya ha sido creado");
         }
 
         String template = templateService.loadTemplate(type);
+        
+        // Autorellenar metadatos del proyecto
+        template = DocumentHtmlHelper.fillProjectMetadata(template, doc.getProject());
+        
+        // Si es el registro de actividades o de hitos, precargar la lista actual de tareas
+        if (type == DocumentType.LISTA_ACTIVIDADES) {
+            List<Task> tasks = taskRepository.findByProjectOrderByStartDateAsc(doc.getProject());
+            template = DocumentHtmlHelper.updateActivitiesTableInHtml(template, tasks);
+        } else if (type == DocumentType.LISTA_HITOS) {
+            List<Task> tasks = taskRepository.findByProjectOrderByStartDateAsc(doc.getProject());
+            template = DocumentHtmlHelper.updateMilestonesTableInHtml(template, tasks);
+        }
+
         doc.setContent(template);
         doc.setStatus(DocumentStatus.EN_PROCESO);
         doc.setUpdatedAt(LocalDateTime.now());
         doc = documentRepository.save(doc);
         documentVersionRepository.save(new DocumentVersion(doc, template, null));
+        
+        if (type.isMultiple()) {
+            Document newPlaceholder = new Document();
+            newPlaceholder.setTitle(type.getLabel());
+            newPlaceholder.setType(type);
+            newPlaceholder.setStatus(DocumentStatus.POR_CREAR);
+            newPlaceholder.setProject(doc.getProject());
+            newPlaceholder.setUpdatedAt(LocalDateTime.now());
+            documentRepository.save(newPlaceholder);
+        }
+        
         return doc;
     }
 
@@ -205,17 +237,17 @@ public class DocumentService {
      * Returns a map of DocumentType → Document for a project, with one entry per
      * type.
      */
-    public Map<DocumentType, Document> getProjectDocumentMap(Long projectId) {
+    public Map<DocumentType, List<Document>> getProjectDocumentMap(Long projectId) {
         List<Document> docs = documentRepository.findByProjectId(projectId);
-        Map<DocumentType, Document> map = new EnumMap<>(DocumentType.class);
+        Map<DocumentType, List<Document>> map = new EnumMap<>(DocumentType.class);
         for (Document d : docs) {
             if (d.getType() != null) {
-                map.put(d.getType(), d);
+                map.computeIfAbsent(d.getType(), k -> new java.util.ArrayList<>()).add(d);
             }
         }
         // Ensure all types are present (fallback for projects not yet seeded)
         for (DocumentType type : DocumentType.values()) {
-            map.putIfAbsent(type, null);
+            map.putIfAbsent(type, new java.util.ArrayList<>());
         }
         return map;
     }
