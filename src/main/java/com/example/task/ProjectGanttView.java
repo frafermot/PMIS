@@ -1056,12 +1056,16 @@ public class ProjectGanttView extends VerticalLayout implements BeforeEnterObser
             durationField.setEnabled(!isMilestone);
             endDateField.setEnabled(!isMilestone);
             if (isMilestone) {
+                durationField.setMin(0);
                 durationField.setValue(0);
                 if (startDateField.getValue() != null) {
                     endDateField.setValue(startDateField.getValue());
                 }
-            } else if (durationField.getValue() == 0) {
-                durationField.setValue(1);
+            } else {
+                durationField.setMin(1);
+                if (durationField.getValue() == null || durationField.getValue() == 0) {
+                    durationField.setValue(1);
+                }
                 if (startDateField.getValue() != null) {
                     endDateField.setValue(startDateField.getValue());
                 }
