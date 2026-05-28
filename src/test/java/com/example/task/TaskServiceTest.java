@@ -12,8 +12,11 @@ import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import com.example.project.Project;
+import com.example.document.DocumentRepository;
+import jakarta.persistence.EntityManager;
 
 class TaskServiceTest {
 
@@ -23,6 +26,10 @@ class TaskServiceTest {
     private ProjectBaselineRepository projectBaselineRepository;
     @Mock
     private TaskBaselineRepository taskBaselineRepository;
+    @Mock
+    private DocumentRepository documentRepository;
+    @Mock
+    private EntityManager entityManager;
 
     @InjectMocks
     private TaskService taskService;
@@ -30,6 +37,8 @@ class TaskServiceTest {
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
+        ReflectionTestUtils.setField(taskService, "entityManager", entityManager);
+        when(entityManager.merge(any(Task.class))).thenAnswer(i -> i.getArgument(0));
     }
 
     @Test

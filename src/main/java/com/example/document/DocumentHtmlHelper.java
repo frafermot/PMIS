@@ -102,16 +102,27 @@ public class DocumentHtmlHelper {
             }
 
             Element tbody = table.select("tbody").first();
+            Element thead = table.select("thead").first();
             Element headerRow = null;
+            
+            if (thead != null) {
+                headerRow = thead.select("tr").first();
+            }
+            
             if (tbody == null) {
                 tbody = table.appendElement("tbody");
+                if (thead == null) {
+                    headerRow = table.select("tr").first();
+                }
             } else {
-                Elements rows = tbody.select("> tr");
-                if (!rows.isEmpty()) {
-                    headerRow = rows.first().clone();
+                if (thead == null) {
+                    Elements rows = tbody.select("> tr");
+                    if (!rows.isEmpty()) {
+                        headerRow = rows.first().clone();
+                    }
                 }
                 tbody.empty();
-                if (headerRow != null) {
+                if (thead == null && headerRow != null) {
                     tbody.appendChild(headerRow);
                 }
             }
@@ -143,7 +154,7 @@ public class DocumentHtmlHelper {
                     for (String header : headers) {
                         Element td = tr.appendElement("td");
                         
-                        if (header.contains("id paquete") || header.contains("wbs")) {
+                        if (header.contains("id paquete") || header.contains("wbs") || header.contains("código") || header.contains("codigo")) {
                             td.text(wbs);
                         } else if (header.equals("id")) {
                             td.text(task.getId() != null ? task.getId().toString() : "");
@@ -205,16 +216,27 @@ public class DocumentHtmlHelper {
             if (table == null) return html;
 
             Element tbody = table.select("tbody").first();
+            Element thead = table.select("thead").first();
             Element headerRow = null;
+            
+            if (thead != null) {
+                headerRow = thead.select("tr").first();
+            }
+            
             if (tbody == null) {
                 tbody = table.appendElement("tbody");
+                if (thead == null) {
+                    headerRow = table.select("tr").first();
+                }
             } else {
-                Elements rows = tbody.select("> tr");
-                if (!rows.isEmpty()) {
-                    headerRow = rows.first().clone();
+                if (thead == null) {
+                    Elements rows = tbody.select("> tr");
+                    if (!rows.isEmpty()) {
+                        headerRow = rows.first().clone();
+                    }
                 }
                 tbody.empty();
-                if (headerRow != null) {
+                if (thead == null && headerRow != null) {
                     tbody.appendChild(headerRow);
                 }
             }
