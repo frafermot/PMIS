@@ -72,6 +72,13 @@ public class DataInitializer implements CommandLineRunner {
         coordinador.setPassword(passwordEncoder.encode("password"));
         userService.createOrUpdate(coordinador);
 
+        User miguel = new User();
+        miguel.setName("Miguel Palomo");
+        miguel.setUvus("migpalgar1");
+        miguel.setRole(Role.ADMIN); // Was isAdmin=true
+        miguel.setPassword(passwordEncoder.encode("password"));
+        userService.createOrUpdate(miguel);
+
         Portfolio portfolio = new Portfolio();
         portfolio.setName("PGPI 24/25");
         portfolio.setDirector(coordinador);

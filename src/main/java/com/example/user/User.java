@@ -40,6 +40,17 @@ public class User {
     @JoinColumn(name = "resource_id")
     private Resource resource;
 
+    @Column(name = "reset_token")
+    private String resetToken;
+
+    public String getResetToken() {
+        return resetToken;
+    }
+
+    public void setResetToken(String resetToken) {
+        this.resetToken = resetToken;
+    }
+
     public String getPassword() {
         return password;
     }
