@@ -16,6 +16,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
         List<User> findAllWithProjectAndResource();
 
         User findByUvus(String uvus);
+        
+        User findByResetToken(String resetToken);
 
         @Query("SELECT DISTINCT u FROM User u " +
                         "LEFT JOIN FETCH u.project p " +
