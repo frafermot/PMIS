@@ -105,3 +105,40 @@ html {
     font-size: 0.75em;
     opacity: 0.8;
 }
+
+/* ------------------------------ */
+/* --- DOCUMENT A4 FORMATTING --- */
+/* ------------------------------ */
+
+.document-a4-wrapper { 
+    max-width: 210mm; 
+    margin: 0 auto; 
+    padding: 15mm 20mm; 
+    background: #ffffff; 
+    box-shadow: 0 0 10px rgba(0,0,0,0.1); 
+    box-sizing: border-box; 
+}
+
+/* Prevents tables and cards from breaking across pages in PDF exports */
+table, tr, td, th, .wbs-card-template { 
+    page-break-inside: avoid !important; 
+    break-inside: avoid !important; 
+}
+
+/* Print specific styles for PDF exports */
+@media print { 
+    @page { 
+        size: A4; 
+        margin: 15mm; 
+    }
+    body { 
+        -webkit-print-color-adjust: exact; 
+        print-color-adjust: exact; 
+    }
+    .document-a4-wrapper { 
+        box-shadow: none; 
+        padding: 0; 
+        max-width: none; 
+        margin: 0; 
+    }
+}

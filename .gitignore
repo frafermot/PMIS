@@ -17,3 +17,5 @@ vite.generated.ts
 *.trace.db
 
 src/main/bundles/
+
+.env.*

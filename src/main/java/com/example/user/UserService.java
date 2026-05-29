@@ -142,6 +142,21 @@ public class UserService {
         return userRepository.findByUvus(uvus);
     }
 
+    public User findByResetToken(String resetToken) {
+        return userRepository.findByResetToken(resetToken);
+    }
+
+    public void updateResetToken(User user, String token) {
+        user.setResetToken(token);
+        userRepository.save(user);
+    }
+    
+    public void updatePassword(User user, String newPassword) {
+        user.setPassword(newPassword);
+        user.setResetToken(null);
+        userRepository.save(user);
+    }
+
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public User findByUvusWithProject(String uvus) {
         return userRepository.findByUvusWithProject(uvus);

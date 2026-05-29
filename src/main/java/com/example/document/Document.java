@@ -8,9 +8,7 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 
 @Entity
-@Table(name = "document", uniqueConstraints = {
-        @UniqueConstraint(columnNames = { "project_id", "document_type" })
-})
+@Table(name = "document")
 public class Document {
 
     @Id
