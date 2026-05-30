@@ -12,10 +12,6 @@ services:
       MYSQL_USER: tfguser
       MYSQL_PASSWORD: tfgpassword
       MYSQL_ROOT_PASSWORD: rootpassword
-      MAIL_USERNAME: ${MAIL_USERNAME}
-      MAIL_PASSWORD: ${MAIL_PASSWORD}
-      GMAIL_USERNAME: ${GMAIL_USERNAME}
-      GMAIL_PASSWORD: ${GMAIL_PASSWORD}
 
     volumes:
       - mysql_data:/var/lib/mysql
@@ -32,6 +28,12 @@ services:
 
     ports:
       - "8080:8080"
+
+    environment:
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
+      GMAIL_USERNAME: ${GMAIL_USERNAME}
+      GMAIL_PASSWORD: ${GMAIL_PASSWORD}
 
     restart: always
 

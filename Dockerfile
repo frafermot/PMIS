@@ -11,6 +11,7 @@ WORKDIR $HOME
 
 COPY . $HOME
 
+RUN sed -i 's/\r$//' mvnw && chmod +x mvnw
 RUN --mount=type=cache,target=/root/.m2 \
     --mount=type=secret,id=proKey \
     --mount=type=secret,id=offlineKey \

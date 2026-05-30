@@ -63,8 +63,9 @@ public class PasswordRecoveryView extends VerticalLayout {
                         // En un entorno real se generaría y guardaría el token en DB asociado a la cuenta
                         String token = UUID.randomUUID().toString();
                         userService.updateResetToken(user, token);
-                        // Asumimos localhost:8080 pero en prod sería el dominio real
-                        String resetLink = "http://localhost:8080/reset-password?token=" + token;
+                        // Generamos el enlace dinámicamente con la base URL de la petición actual
+                        String baseUrl = org.springframework.web.servlet.support.ServletUriComponentsBuilder.fromCurrentContextPath().build().toUriString();
+                        String resetLink = baseUrl + "/reset-password?token=" + token;
                         
                         emailService.sendPasswordRecoveryEmail(email, resetLink);
                     }
