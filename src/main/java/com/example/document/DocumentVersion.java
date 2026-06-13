@@ -23,7 +23,7 @@ public class DocumentVersion {
     private Document document;
 
     @Lob
-    @Column(name = "document_version_content")
+    @Column(name = "document_version_content", columnDefinition = "LONGTEXT")
     private String content;
 
     @ManyToOne(fetch = FetchType.LAZY)

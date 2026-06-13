@@ -22,7 +22,7 @@ public class Document {
     private String title;
 
     @Lob
-    @Column(name = "document_content")
+    @Column(name = "document_content", columnDefinition = "LONGTEXT")
     private String content;
 
     @Version
