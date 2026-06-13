@@ -17,6 +17,7 @@ import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.textfield.TextArea;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.router.Menu;
 import com.vaadin.flow.router.PageTitle;
@@ -75,11 +76,13 @@ public class UserView extends VerticalLayout {
         HorizontalLayout toolbar = new HorizontalLayout();
 
         // Only PMO Directors can add new Users (Role.USER)
-        // Admins manage Managers/Admins in GestorView
-        if (securityService.isPmoDirector()) {
+        // Admins and Managers can also manage users globally
+        if (securityService.isPmoDirector() || securityService.isAdminOrManager()) {
             Button addUserButton = new Button("Añadir Usuario");
             addUserButton.addClickListener(e -> openCreateUserDialog());
-            toolbar.add(addUserButton);
+            Button addUsersCsvButton = new Button("Añadir Usuarios desde CSV");
+            addUsersCsvButton.addClickListener(e -> openCreateUsersFromCsvDialog());
+            toolbar.add(addUserButton, addUsersCsvButton);
         }
 
         return toolbar;
@@ -105,7 +108,7 @@ public class UserView extends VerticalLayout {
         resourceComboBox.setItems(resourceService.findAll());
         resourceComboBox.setItemLabelGenerator(r -> r.getResourceType() + " - " + r.getProfessionalProfile());
         resourceComboBox.setValue(user.getResource());
-        resourceComboBox.setReadOnly(!securityService.isPmoDirector());
+        resourceComboBox.setReadOnly(!(securityService.isPmoDirector() || securityService.isAdminOrManager()));
 
         VerticalLayout dialogLayout = new VerticalLayout(nameField, uvusField, projectField, resourceComboBox);
         dialog.add(dialogLayout);
@@ -113,7 +116,7 @@ public class UserView extends VerticalLayout {
         Button closeButton = new Button("Cerrar", e -> dialog.close());
         dialog.getFooter().add(closeButton);
 
-        if (securityService.isPmoDirector()) {
+        if (securityService.isPmoDirector() || securityService.isAdminOrManager()) {
             Button saveButton = new Button("Guardar Cambios", e -> {
                 user.setResource(resourceComboBox.getValue());
                 userService.createOrUpdate(user);
@@ -124,8 +127,8 @@ public class UserView extends VerticalLayout {
             dialog.getFooter().add(saveButton);
         }
 
-        // Only PMO Directors can delete Users (Role.USER)
-        if (securityService.isPmoDirector()) {
+        // PMO Directors, Admins and Managers can delete Users (Role.USER)
+        if (securityService.isPmoDirector() || securityService.isAdminOrManager()) {
             Button deleteButton = new Button("Eliminar", e -> {
                 try {
                     if (userService.hasAssignedEntities(user.getId())) {
@@ -210,6 +213,68 @@ public class UserView extends VerticalLayout {
 
             Notification notification = Notification.show("Usuario creado. Contraseña: " + generatedPassword);
             notification.setDuration(10000);
+        });
+
+        Button cancelButton = new Button("Cancelar", e -> dialog.close());
+
+        dialog.getFooter().add(cancelButton);
+        dialog.getFooter().add(saveButton);
+
+        dialog.open();
+    }
+
+    private void openCreateUsersFromCsvDialog() {
+        Dialog dialog = new Dialog();
+        dialog.setHeaderTitle("Añadir Usuarios desde CSV");
+
+        TextArea uvusListArea = new TextArea("Lista de UVUS (separados por comas o saltos de línea)");
+        uvusListArea.setWidthFull();
+        uvusListArea.setHeight("200px");
+        uvusListArea.setPlaceholder("ejemplo1, ejemplo2\nejemplo3");
+
+        VerticalLayout dialogLayout = new VerticalLayout(uvusListArea);
+        dialogLayout.setWidth("400px");
+        dialog.add(dialogLayout);
+
+        Button saveButton = new Button("Crear Usuarios", e -> {
+            if (uvusListArea.isEmpty()) {
+                Notification.show("Por favor introduzca al menos un UVUS");
+                return;
+            }
+
+            String[] uvusArray = uvusListArea.getValue().split("[,\\s\\n\\r]+");
+            int createdCount = 0;
+            
+            for (String uvus : uvusArray) {
+                if (!uvus.trim().isEmpty()) {
+                    // Check if user already exists
+                    if (userService.findByUvus(uvus.trim()) != null) {
+                        Notification.show("El usuario " + uvus.trim() + " ya existe, omitiendo...");
+                        continue;
+                    }
+
+                    User newUser = new User();
+                    newUser.setName(uvus.trim());
+                    newUser.setUvus(uvus.trim());
+                    newUser.setRole(Role.USER);
+
+                    String generatedPassword = passwordGenerator.generateStrongPassword();
+                    newUser.setPassword(passwordEncoder.encode(generatedPassword));
+
+                    try {
+                        userService.createOrUpdate(newUser);
+                        createdCount++;
+                    } catch (Exception ex) {
+                        Notification.show("Error creando el usuario: " + uvus.trim());
+                    }
+                }
+            }
+
+            updateList();
+            dialog.close();
+
+            Notification notification = Notification.show("Se han creado " + createdCount + " usuarios exitosamente.");
+            notification.setDuration(5000);
         });
 
         Button cancelButton = new Button("Cancelar", e -> dialog.close());
