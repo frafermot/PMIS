@@ -171,10 +171,7 @@ public class DocumentEditorView extends VerticalLayout implements BeforeEnterObs
         addComponentAtIndex(1, new H3(heading));
 
         // ── Permission flags ──────────────────────────────────────────────────
-        boolean canRate = false;
-        if (currentDocument.getProject() != null) {
-            canRate = securityService.isProjectSponsor(currentDocument.getProject().getId());
-        }
+        boolean canRate = securityService.isAdminOrManager();
 
         boolean canEdit = false;
         User currentUser = securityService.getCurrentUser();
@@ -188,6 +185,11 @@ public class DocumentEditorView extends VerticalLayout implements BeforeEnterObs
         }
         if (currentDocument.getStatus() == DocumentStatus.POR_CREAR) {
             canEdit = false; // should not happen via normal flow, but guard anyway
+        }
+        if (currentDocument.getStatus() == DocumentStatus.FIRMADO) {
+            if (currentDocument.getRating() == null || currentDocument.getRating() >= 4.0) {
+                canEdit = false;
+            }
         }
         this.canEditContent = canEdit;
 

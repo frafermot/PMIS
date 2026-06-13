@@ -38,8 +38,10 @@ public class UserService {
             return userRepository.save(user);
         }
 
-        // Admin can manage Managers and Admins
-        if ((user.getRole() == Role.MANAGER || user.getRole() == Role.ADMIN) && securityService.isAdmin()) {
+        if (securityService.isAdminOrManager()) {
+            if (securityService.isManager() && user.getRole() == Role.ADMIN) {
+                throw new SecurityException("No puedes crear o modificar usuarios con rol ADMIN");
+            }
             return userRepository.save(user);
         }
 
@@ -154,6 +156,15 @@ public class UserService {
     public void updatePassword(User user, String newPassword) {
         user.setPassword(newPassword);
         user.setResetToken(null);
+        userRepository.save(user);
+    }
+
+    public void updateName(Long userId, String newName) {
+        if (!securityService.isCurrentUser(userId)) {
+            throw new SecurityException("Solo puedes modificar tu propio nombre");
+        }
+        User user = userRepository.findById(userId).orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado"));
+        user.setName(newName);
         userRepository.save(user);
     }
 

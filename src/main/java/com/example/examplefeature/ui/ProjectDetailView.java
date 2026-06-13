@@ -230,7 +230,8 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         Button saveButton = new Button("Guardar Cambios", e -> saveProject());
         saveButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
 
-        HorizontalLayout formLayout = new HorizontalLayout(nameField, programField, directorSelect, sponsorSelect, saveButton);
+        HorizontalLayout formLayout = new HorizontalLayout(nameField, programField, directorSelect, sponsorSelect,
+                saveButton);
         formLayout.setWidthFull();
         formLayout.setAlignItems(Alignment.END);
         add(formLayout);
@@ -263,9 +264,9 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
     private void buildScheduleSection() {
         VerticalLayout layout = new VerticalLayout();
         layout.setPadding(false);
-        
+
         boolean hasTasks = !taskService.getTasksByProject(currentProject).isEmpty();
-        
+
         if (hasTasks) {
             Button openGanttBtn = new Button("Acceder al Cronograma", e -> {
                 UI.getCurrent().navigate("proyecto/" + currentProject.getId() + "/gantt");
@@ -273,23 +274,26 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
             openGanttBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_LARGE);
             layout.add(openGanttBtn);
             layout.setAlignItems(Alignment.CENTER);
-            
+
             // Add calendar summary/quick access
-            Span calendarSummary = new Span("Calendario: " + currentProject.getWorkingDays() + " (" + 
+            Span calendarSummary = new Span("Calendario: " + currentProject.getWorkingDays() + " (" +
                     currentProject.getWorkStartHour() + " - " + currentProject.getWorkEndHour() + ")");
-            calendarSummary.getStyle().set("font-size", "var(--lumo-font-size-s)").set("color", "var(--lumo-secondary-text-color)");
+            calendarSummary.getStyle().set("font-size", "var(--lumo-font-size-s)").set("color",
+                    "var(--lumo-secondary-text-color)");
             layout.add(calendarSummary);
         } else {
             HorizontalLayout formLayout = new HorizontalLayout();
             formLayout.setWidthFull();
             formLayout.setAlignItems(Alignment.END);
-            
+
             DatePicker startField = new DatePicker("Fecha de Inicio");
-            startField.setValue(currentProject.getStartDate() != null ? currentProject.getStartDate() : LocalDate.now());
-            
+            startField
+                    .setValue(currentProject.getStartDate() != null ? currentProject.getStartDate() : LocalDate.now());
+
             DatePicker endField = new DatePicker("Fecha de Fin");
-            endField.setValue(currentProject.getEndDate() != null ? currentProject.getEndDate() : LocalDate.now().plusDays(30));
-            
+            endField.setValue(
+                    currentProject.getEndDate() != null ? currentProject.getEndDate() : LocalDate.now().plusDays(30));
+
             Button initBtn = new Button("Crear Cronograma", e -> {
                 if (startField.isEmpty() || endField.isEmpty()) {
                     Notification.show("Rellena las fechas de inicio y fin");
@@ -306,11 +310,11 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
                 UI.getCurrent().navigate("proyecto/" + currentProject.getId() + "/gantt");
             });
             initBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-            
+
             formLayout.add(startField, endField, initBtn);
             layout.add(new H3("Configurar Cronograma Inicial"), formLayout);
         }
-        
+
         scheduleDetails = new Details("Cronograma", layout);
         scheduleDetails.setOpened(true);
         scheduleDetails.setWidthFull();
@@ -320,9 +324,9 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
     // ─── Users section (collapsible, closed by default) ───────────────────────
 
     private void buildUsersSection() {
-        boolean isSystemAdmin = securityService.isAdmin(); 
+        boolean isSystemAdmin = securityService.isAdmin();
         boolean canManageUsers = isSystemAdmin || isSponsor || isProjectDirector;
-        
+
         userGrid = new Grid<>(User.class, false);
 
         VerticalLayout content = new VerticalLayout();
@@ -341,8 +345,6 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         usersDetails.setWidthFull();
         add(usersDetails);
     }
-
-
 
     private void buildDocumentsSection() {
         // Seed documents (idempotent)
@@ -576,20 +578,49 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
             var crearItem = menu.addItem("Crear", e -> handleCrear(row.type()));
             User cu = securityService.getCurrentUser();
             boolean isSystemAdmin = securityService.isAdmin();
-            boolean isProjectDirector = currentProject.getDirector() != null && cu != null && currentProject.getDirector().getId().equals(cu.getId());
-            boolean isMember = cu != null && cu.getProject() != null && cu.getProject().getId().equals(currentProject.getId());
+            boolean isProjectDirector = currentProject.getDirector() != null && cu != null
+                    && currentProject.getDirector().getId().equals(cu.getId());
+            boolean isMember = cu != null && cu.getProject() != null
+                    && cu.getProject().getId().equals(currentProject.getId());
             boolean canCreate = isSystemAdmin || isProjectDirector || isMember;
             crearItem.setEnabled(isPorCrear && canCreate && !isSponsor);
-    
+
             // Modificar — only when document exists
+            boolean canModify = !isPorCrear && row.document() != null;
+            if (canModify && status == DocumentStatus.FIRMADO) {
+                if (row.document().getRating() == null || row.document().getRating() >= 5.0) {
+                    canModify = false;
+                }
+            }
             var modificarItem = menu.addItem("Modificar", e -> handleModificar(row.document()));
-            modificarItem.setEnabled(!isPorCrear && row.document() != null);
-    
-            // No-op actions
-            menu.addItem("Enviar", e -> Notification.show("Funcionalidad de envío no disponible aún"))
-                    .setEnabled(false);
-            menu.addItem("Firmar", e -> Notification.show("Funcionalidad de firma no disponible aún"))
-                    .setEnabled(false);
+            modificarItem.setEnabled(canModify);
+
+            // Enviar action
+            var enviarItem = menu.addItem("Enviar", e -> {
+                row.document().setStatus(DocumentStatus.ENVIADO);
+                documentService.createOrUpdate(row.document());
+                Notification.show("Documento enviado", 3000, Notification.Position.BOTTOM_END);
+                renderDocView();
+            });
+            enviarItem.setEnabled(!isPorCrear && row.document() != null && status != DocumentStatus.ENVIADO);
+
+            // Firmar action
+            var firmarItem = menu.addItem("Firmar", e -> {
+                com.vaadin.flow.component.confirmdialog.ConfirmDialog confirmDialog = new com.vaadin.flow.component.confirmdialog.ConfirmDialog();
+                confirmDialog.setHeader("Confirmar Firma");
+                confirmDialog.setText("¿Estás seguro que quieres firmarlo? No podrá ser modificado.");
+                confirmDialog.setCancelable(true);
+                confirmDialog.setConfirmText("Firmar");
+                confirmDialog.setConfirmButtonTheme("primary error");
+                confirmDialog.addConfirmListener(ev -> {
+                    row.document().setStatus(DocumentStatus.FIRMADO);
+                    documentService.createOrUpdate(row.document());
+                    Notification.show("Documento firmado", 3000, Notification.Position.BOTTOM_END);
+                    renderDocView();
+                });
+                confirmDialog.open();
+            });
+            firmarItem.setEnabled(!isPorCrear && row.document() != null && status != DocumentStatus.FIRMADO);
             menu.addItem("Descargar PDF", e -> downloadDocumentPdf(row.document()))
                     .setEnabled(!isPorCrear && row.document() != null);
         }
@@ -602,7 +633,9 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
             Document created = documentService.createDocument(currentProject.getId(), type);
             UI.getCurrent().navigate("document/" + created.getId());
         } catch (Exception ex) {
-            Notification.show("Error al crear el documento: " + com.example.base.ui.MainErrorHandler.getPersonalizedMessage(ex), 5000, Notification.Position.MIDDLE);
+            Notification.show(
+                    "Error al crear el documento: " + com.example.base.ui.MainErrorHandler.getPersonalizedMessage(ex),
+                    5000, Notification.Position.MIDDLE);
         }
     }
 
@@ -643,7 +676,7 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         currentProject.setName(nameField.getValue());
         currentProject.setDirector(directorSelect.getValue());
         currentProject.setSponsor(sponsorSelect.getValue());
-        
+
         projectService.createOrUpdate(currentProject);
         Notification.show("Cambios guardados");
         removeAll();
@@ -655,14 +688,15 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
     private void configureUserGrid(boolean canManageUsers) {
         userGrid.setWidthFull();
         userGrid.setColumnReorderingAllowed(true);
-        
+
         userGrid.addColumn(User::getId).setHeader("ID").setWidth("80px").setFlexGrow(0).setResizable(true);
         userGrid.addColumn(User::getName).setHeader("Nombre").setFlexGrow(2).setResizable(true);
         userGrid.addColumn(User::getUvus).setHeader("UVUS").setFlexGrow(1).setResizable(true);
-        
+
         userGrid.addColumn(u -> {
             Resource r = u.getResource();
-            if (r == null) return "-";
+            if (r == null)
+                return "-";
             String cost = r.getCostPerHour() != null ? " (" + r.getCostPerHour() + " €/h)" : "";
             return r.getResourceType() + " - " + r.getProfessionalProfile() + cost;
         }).setHeader("Recurso PMO").setFlexGrow(2).setResizable(true);
@@ -670,23 +704,24 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         if (canManageUsers) {
             userGrid.addComponentColumn(user -> {
                 HorizontalLayout actions = new HorizontalLayout();
-                
+
                 Button assignResourceBtn = new Button("Vincular Recurso", e -> openAssignResourceDialog(user));
                 assignResourceBtn.addThemeVariants(ButtonVariant.LUMO_SMALL);
-                
+
                 Button removeButton = new Button("Eliminar", e -> unassignUser(user));
                 removeButton.addThemeVariants(ButtonVariant.LUMO_SMALL, ButtonVariant.LUMO_ERROR);
-                
+
                 User cu = securityService.getCurrentUser();
                 boolean isSystemAdmin = securityService.isAdmin();
-                boolean isProjectDirector = currentProject.getDirector() != null && cu != null && currentProject.getDirector().getId().equals(cu.getId());
+                boolean isProjectDirector = currentProject.getDirector() != null && cu != null
+                        && currentProject.getDirector().getId().equals(cu.getId());
                 boolean canAssignResources = isSystemAdmin || isProjectDirector;
-                
+
                 if (canAssignResources) {
                     actions.add(assignResourceBtn);
                 }
                 actions.add(removeButton);
-                
+
                 return actions;
             }).setHeader("Acciones").setWidth("250px").setFlexGrow(0).setResizable(true);
         }
@@ -794,15 +829,15 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
         dialog.setWidth("500px");
 
         VerticalLayout layout = new VerticalLayout();
-        
+
         Select<Resource> resourceSelect = new Select<>();
         resourceSelect.setLabel("Seleccionar Recurso");
         resourceSelect.setItems(resourceService.findAll());
-        resourceSelect.setItemLabelGenerator(r -> r.getResourceType() + " - " + r.getProfessionalProfile() + 
+        resourceSelect.setItemLabelGenerator(r -> r.getResourceType() + " - " + r.getProfessionalProfile() +
                 (r.getCostPerHour() != null ? " (" + r.getCostPerHour() + " €/h)" : ""));
         resourceSelect.setValue(user.getResource());
         resourceSelect.setWidthFull();
-        
+
         layout.add(resourceSelect);
         dialog.add(layout);
 
@@ -814,7 +849,7 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
             Notification.show("Recurso asignado correctamente");
         });
         saveBtn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-        
+
         dialog.getFooter().add(new Button("Cancelar", e -> dialog.close()));
         dialog.getFooter().add(saveBtn);
         dialog.open();
@@ -829,20 +864,25 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
 
             StringBuilder sb = new StringBuilder();
             sb.append("<html><head><meta charset='UTF-8'/><style>");
-            sb.append("@page { size: A4; margin: 15mm; margin-bottom: 25mm; @bottom-center { content: element(footer); } }");
+            sb.append(
+                    "@page { size: A4; margin: 15mm; margin-bottom: 25mm; @bottom-center { content: element(footer); } }");
             sb.append("#pdf-footer { position: running(footer); width: 100%; }");
             sb.append("body { font-family: 'Helvetica', sans-serif; font-size: 11pt; line-height: 1.5; color: #333; }");
             sb.append("h1 { color: #2c3e50; text-align: center; margin-bottom: 20px; }");
-            sb.append("table { width: 100%; border-collapse: collapse; margin-top: 20px; table-layout: fixed; word-wrap: break-word; -fs-table-paginate: paginate; }");
+            sb.append(
+                    "table { width: 100%; border-collapse: collapse; margin-top: 20px; table-layout: fixed; word-wrap: break-word; -fs-table-paginate: paginate; }");
             sb.append("th, td { border: 1px solid #dee2e6; padding: 12px; text-align: left; vertical-align: top; }");
-            sb.append("th { background-color: #f8f9fa; font-weight: bold; color: #495057; border-bottom: 2px solid #dee2e6; }");
+            sb.append(
+                    "th { background-color: #f8f9fa; font-weight: bold; color: #495057; border-bottom: 2px solid #dee2e6; }");
             sb.append("tr:nth-child(even) { background-color: #fcfcfc; }");
-            sb.append("table, tr, td, th, .wbs-card-template { page-break-inside: avoid !important; break-inside: avoid !important; }");
+            sb.append(
+                    "table, tr, td, th, .wbs-card-template { page-break-inside: avoid !important; break-inside: avoid !important; }");
             sb.append("img { max-width: 100%; height: auto; }");
             sb.append("</style></head><body>");
             sb.append("<div id='pdf-footer'>");
             sb.append("    <div style='clear:both;'>");
-            sb.append("        <p style='margin-top:0pt; margin-bottom:0pt; text-align:right; line-height:normal; background-color:#17365d; padding: 2px 10px;'>");
+            sb.append(
+                    "        <p style='margin-top:0pt; margin-bottom:0pt; text-align:right; line-height:normal; background-color:#17365d; padding: 2px 10px;'>");
             sb.append("            <span style='font-family:\"Copperplate Gothic Bold\"; color:#ffffff;'>PGPI</span>");
             sb.append("        </p>");
             sb.append("    </div>");
@@ -858,17 +898,21 @@ public class ProjectDetailView extends VerticalLayout implements HasUrlParameter
             byte[] pdfBytes = pdfService.generatePdfFromHtml(sb.toString());
 
             com.vaadin.flow.server.StreamResource resource = new com.vaadin.flow.server.StreamResource(
-                document.getType().getLabel() + ".pdf",
-                () -> new java.io.ByteArrayInputStream(pdfBytes));
-            
-            com.vaadin.flow.component.html.Anchor downloadLink = new com.vaadin.flow.component.html.Anchor(resource, "");
+                    document.getType().getLabel() + ".pdf",
+                    () -> new java.io.ByteArrayInputStream(pdfBytes));
+
+            com.vaadin.flow.component.html.Anchor downloadLink = new com.vaadin.flow.component.html.Anchor(resource,
+                    "");
             downloadLink.getElement().setAttribute("download", true);
             downloadLink.getElement().getStyle().set("display", "none");
             add(downloadLink);
             downloadLink.getElement().executeJs("this.click()");
-            UI.getCurrent().getPage().executeJs("setTimeout(function() { $0.remove(); }, 1000);", downloadLink.getElement());
+            UI.getCurrent().getPage().executeJs("setTimeout(function() { $0.remove(); }, 1000);",
+                    downloadLink.getElement());
         } catch (Exception ex) {
-            Notification.show("Error al generar el PDF: " + com.example.base.ui.MainErrorHandler.getPersonalizedMessage(ex), 5000, Notification.Position.MIDDLE);
+            Notification.show(
+                    "Error al generar el PDF: " + com.example.base.ui.MainErrorHandler.getPersonalizedMessage(ex), 5000,
+                    Notification.Position.MIDDLE);
         }
     }
 }
