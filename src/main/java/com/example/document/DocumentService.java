@@ -136,13 +136,12 @@ public class DocumentService {
                 throw new org.springframework.orm.ObjectOptimisticLockingFailureException(Document.class, document.getId());
             }
 
-            boolean isProgramDirector = existing.getProject() != null && existing.getProject().getProgram() != null
-                    && securityService.isProgramDirector(existing.getProject().getProgram().getId());
+            boolean canRate = securityService.isAdminOrManager();
 
             boolean isAssignedToProject = existing.getProject() != null
                     && existing.getProject().equals(currentUser.getProject());
 
-            if (!isAssignedToProject && !isProgramDirector) {
+            if (!isAssignedToProject && !canRate) {
                 throw new SecurityException("No tiene permiso para modificar este documento");
             }
 
@@ -165,7 +164,7 @@ public class DocumentService {
                 }
             }
 
-            if (isProgramDirector) {
+            if (canRate) {
                 if (document.getRating() != null) {
                     double r = document.getRating();
                     if (r < 0 || r > 10) {
@@ -176,6 +175,10 @@ public class DocumentService {
                     }
                 }
                 existing.setRating(document.getRating());
+            }
+
+            if (document.getStatus() != null) {
+                existing.setStatus(document.getStatus());
             }
 
             existing.setUpdatedAt(LocalDateTime.now());
