@@ -136,7 +136,9 @@ public class DocumentService {
                 throw new org.springframework.orm.ObjectOptimisticLockingFailureException(Document.class, document.getId());
             }
 
-            boolean canRate = securityService.isAdminOrManager();
+            boolean canRate = securityService.isAdmin() ||
+                    (existing.getProject() != null && existing.getProject().getProgram() != null &&
+                            securityService.isProgramDirector(existing.getProject().getProgram().getId()));
 
             boolean isAssignedToProject = existing.getProject() != null
                     && existing.getProject().equals(currentUser.getProject());

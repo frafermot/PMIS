@@ -44,7 +44,7 @@ public class Document {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "document_status", nullable = false)
-    private DocumentStatus status = DocumentStatus.POR_CREAR;
+    private DocumentStatus status;
 
     @Column(name = "document_rating")
     @Min(0)
