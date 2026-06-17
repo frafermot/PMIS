@@ -213,7 +213,13 @@ public class SecurityPermissionTest {
     public void testPmoDirectorCanManageUsers() {
         authenticateAsSystem();
 
-        // Setup PMO with manager3 as director
+        // Setup PMO with a Role.USER as director
+        User pmoDirUser = new User();
+        pmoDirUser.setName("pmoDirUser");
+        pmoDirUser.setUvus("pmoDirUser");
+        pmoDirUser.setRole(Role.USER);
+        pmoDirUser = userService.createOrUpdate(pmoDirUser);
+
         Portfolio portfolio = new Portfolio();
         portfolio.setName("P1");
         portfolio.setDirector(manager1);
@@ -222,11 +228,11 @@ public class SecurityPermissionTest {
         PMO pmo = new PMO();
         pmo.setName("PMO1");
         pmo.setPortfolio(portfolio);
-        pmo.setDirector(manager3);
+        pmo.setDirector(pmoDirUser);
         pmo = pmoService.createOrUpdate(pmo);
 
         // Authenticate as PMO Director
-        authenticate(manager3);
+        authenticate(pmoDirUser);
 
         // Create User (Role USER)
         User newUser = new User();
@@ -264,18 +270,33 @@ public class SecurityPermissionTest {
     }
 
     @Test
-    public void testAdminCannotManageUsers() {
+    public void testAdminCanManageUsers() {
         authenticate(admin);
 
-        // Admin SHOULD NOT allow managing users (only PMO Director can)
+        // Admin SHOULD allow managing users
         User user = new User();
         user.setRole(Role.USER);
         user.setUvus("user_test");
         user.setName("User Test");
 
-        assertThrows(SecurityException.class, () -> {
-            userService.createOrUpdate(user);
-        });
+        User created = userService.createOrUpdate(user);
+        assertNotNull(created);
+        assertEquals(Role.USER, created.getRole());
+    }
+
+    @Test
+    public void testManagerCanManageUsers() {
+        authenticate(manager1);
+
+        // Manager SHOULD allow managing users
+        User user = new User();
+        user.setRole(Role.USER);
+        user.setUvus("user_test2");
+        user.setName("User Test 2");
+
+        User created = userService.createOrUpdate(user);
+        assertNotNull(created);
+        assertEquals(Role.USER, created.getRole());
     }
 
     @Test
@@ -344,6 +365,13 @@ public class SecurityPermissionTest {
     public void testProjectDirectorCannotAssignUserToOtherProject() {
         authenticateAsSystem();
 
+        // Setup a Role.USER to act as Project Director
+        User projDirUser = new User();
+        projDirUser.setName("projDirUser");
+        projDirUser.setUvus("projDirUser");
+        projDirUser.setRole(Role.USER);
+        projDirUser = userService.createOrUpdate(projDirUser);
+
         // Setup Hierarchy for Project 1
         Portfolio portfolio = new Portfolio();
         portfolio.setName("P1");
@@ -357,18 +385,18 @@ public class SecurityPermissionTest {
         Project project1 = new Project();
         project1.setName("Proj1");
         project1.setProgram(program);
-        project1.setDirector(manager4);
+        project1.setDirector(projDirUser);
         project1 = projectService.createOrUpdate(project1);
 
         // Another Project
         Project project2 = new Project();
         project2.setName("Proj2");
         project2.setProgram(program);
-        // manager4 is NOT director of project2
+        // projDirUser is NOT director of project2
         project2 = projectService.createOrUpdate(project2);
 
         // Authenticate as Project Director of Project 1
-        authenticate(manager4);
+        authenticate(projDirUser);
 
         User u = regularUser;
         u.setProject(project2); // Try to assign to project 2

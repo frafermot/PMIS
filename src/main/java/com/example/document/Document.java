@@ -22,7 +22,7 @@ public class Document {
     private String title;
 
     @Lob
-    @Column(name = "document_content")
+    @Column(name = "document_content", columnDefinition = "LONGTEXT")
     private String content;
 
     @Version
@@ -44,7 +44,7 @@ public class Document {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "document_status", nullable = false)
-    private DocumentStatus status = DocumentStatus.POR_CREAR;
+    private DocumentStatus status;
 
     @Column(name = "document_rating")
     @Min(0)

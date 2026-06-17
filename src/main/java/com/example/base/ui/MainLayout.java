@@ -86,10 +86,47 @@ public class MainLayout extends AppLayout implements RouterLayout { // Implement
                         Span name = new Span(user.getName());
                         name.addClassNames(FontWeight.BOLD, FontSize.SMALL);
 
+                        com.vaadin.flow.component.button.Button editNameBtn = new com.vaadin.flow.component.button.Button(VaadinIcon.PENCIL.create());
+                        editNameBtn.addThemeVariants(com.vaadin.flow.component.button.ButtonVariant.LUMO_TERTIARY, com.vaadin.flow.component.button.ButtonVariant.LUMO_SMALL);
+                        editNameBtn.getStyle().set("padding", "0");
+                        editNameBtn.getStyle().set("margin-left", "auto");
+                        
+                        editNameBtn.addClickListener(e -> {
+                            com.vaadin.flow.component.dialog.Dialog dialog = new com.vaadin.flow.component.dialog.Dialog();
+                            dialog.setHeaderTitle("Modificar Nombre");
+                            com.vaadin.flow.component.textfield.TextField nameField = new com.vaadin.flow.component.textfield.TextField("Nombre");
+                            nameField.setValue(user.getName());
+                            nameField.setWidthFull();
+                            
+                            com.vaadin.flow.component.button.Button saveBtn = new com.vaadin.flow.component.button.Button("Guardar", ev -> {
+                                if(!nameField.isEmpty()) {
+                                    try {
+                                        userService.updateName(user.getId(), nameField.getValue());
+                                        user.setName(nameField.getValue());
+                                        name.setText(nameField.getValue());
+                                        dialog.close();
+                                        com.vaadin.flow.component.notification.Notification.show("Nombre actualizado", 3000, com.vaadin.flow.component.notification.Notification.Position.BOTTOM_CENTER);
+                                    } catch (Exception ex) {
+                                        com.vaadin.flow.component.notification.Notification.show("Error: " + ex.getMessage(), 5000, com.vaadin.flow.component.notification.Notification.Position.MIDDLE);
+                                    }
+                                }
+                            });
+                            saveBtn.addThemeVariants(com.vaadin.flow.component.button.ButtonVariant.LUMO_PRIMARY);
+                            com.vaadin.flow.component.button.Button cancelBtn = new com.vaadin.flow.component.button.Button("Cancelar", ev -> dialog.close());
+                            
+                            dialog.add(nameField);
+                            dialog.getFooter().add(cancelBtn, saveBtn);
+                            dialog.open();
+                        });
+
+                        com.vaadin.flow.component.orderedlayout.HorizontalLayout nameLayout = new com.vaadin.flow.component.orderedlayout.HorizontalLayout(name, editNameBtn);
+                        nameLayout.setWidthFull();
+                        nameLayout.setAlignItems(com.vaadin.flow.component.orderedlayout.FlexComponent.Alignment.CENTER);
+
                         Span uvus = new Span("@" + user.getUvus());
                         uvus.addClassNames(TextColor.SECONDARY, FontSize.XSMALL);
 
-                        footer.add(name, uvus);
+                        footer.add(nameLayout, uvus);
                     }
                 });
 
